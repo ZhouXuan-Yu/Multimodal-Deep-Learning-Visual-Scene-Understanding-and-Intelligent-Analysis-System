@@ -1,0 +1,284 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="{{ url_for('static', filename='IcoWebsite.ico') }}">
+    <title>登录</title>
+    <!-- 其他样式保持不变 -->
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+        .bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            min-width: 100%;
+            min-height: 100%;
+            z-index: -1;
+        }
+        .register-container {
+            background-color: rgba(4, 7, 21, 0.5);
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 320px;
+            text-align: center;
+        }
+        h1 {
+            margin-bottom: 2rem;
+            color: #fff;
+        }
+        form > input {
+            width: calc(100% - 20px);
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        input[type="submit"], a {
+            background-color: #6a676c;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            margin-top: 10px;
+            border-radius: 5px;
+            width: 100%;
+            box-sizing: border-box;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        input[type="submit"]:hover, input[type="reset"]:hover, a:hover {
+            background-color: #acc2b6;
+            color: #65636c;
+        }
+        .message {
+            padding: 10px;
+            margin-top: 15px;
+            border: 1px solid transparent;
+            border-radius: 5px;
+            color: #fff;
+            background-color: #2e2b2b;
+        }
+        #video-wrapper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            min-width: 100%;
+            min-height: 100%;
+            z-index: -100;
+            overflow: hidden;
+        }
+
+        #video-wrapper video {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            transform: translateX(-50%) translateY(-50%);
+        }
+
+    #register-container {
+        width: 30%;
+        min-height: 500px;
+        background: rgba(0, 0, 0, 0.6);
+        margin: auto;
+        margin-top: 3%;
+        text-align: center;
+        border-radius: 10px;
+        padding: 60px 60px;
+        box-sizing: border-box; /* 确保padding不影响盒子大小 */
+       
+     }   
+    
+
+    @media (max-width: 768px) {
+        #register-container {
+            width: 95%;
+            padding: 50px 20px;
+        }
+    }
+
+    h2 {
+        color: #fff; /* 提高可读性 */
+        margin: 5% 0;
+        text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    }
+
+    #input-box {
+        margin-top: 5%;
+    }
+
+    input {
+        border: 0;
+        width: 60%;
+        font-size: 15px;
+        color: #fff;
+        background: transparent;
+        border-bottom: 2px solid #fff;
+        padding: 5px 10px;
+        outline: none;
+        margin-top: 10px;
+    }
+
+    input:focus {
+        border-bottom: 2px solid #30cfd0;
+        background-color: #00000030;
+    }
+    #register-form {
+        display: flex;
+        flex-direction: column; /* 垂直堆叠子元素 */
+        align-items: center; /* 水平居中对齐子元素 */
+        justify-content: center; /* 垂直居中对齐子元素 */
+    }
+    button {
+        
+            margin-top: 50px;
+            width: 60%;
+            height: 40px;
+            border-radius: 10px;
+            border: 0;
+            color: #fff;
+            font-size: 15px;
+            background-color: rgb(196, 60, 60); /* 设置背景颜色为红色 */
+            transition: background-color 0.3s ease; /* 平滑过渡效果 */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+        }
+        #register-form button {
+            background-color: rgb(196, 60, 60); /* 设置背景颜色为红色 */
+            color: white; /* 设置文字颜色为白色以提高可读性 */
+            border: none; /* 移除边框 */
+        }
+
+        #register-form button:hover {
+            background-color: darkred; /* 鼠标悬停时的背景颜色变为深红色 */
+        }
+        button:hover {
+            background-color: darkred; /* 鼠标悬停时的背景颜色变为深红色 */
+            cursor: pointer;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+        }
+    a {
+        color: #b94648;
+        display: block;
+        margin-top: 20px;
+        text-decoration: none;
+        transition: color 0.3s ease;
+    }
+
+    a:hover {
+        text-decoration: underline;
+        color: #ff6b6b;
+    }
+       </style>
+</head>
+<body>
+    <div id="register-container">
+        <h2>登录到您的账户</h2>
+        <form id="login-form">
+            <div id="input-box">
+                <input type="text" name="username" placeholder="用户名" required>
+                <input type="password" name="password" placeholder="密码" required>
+            </div>
+            <button id="login-button" type= "submit">登录</button>
+            <!-- <a href="#">忘记密码?</a> -->
+            <a href="#" id="register-link">创建新账户</a>
+        </form>
+    </div>
+    <div id="video-wrapper">
+        <video autoplay loop muted class="bg" width="90%" height="90%">
+            <source src="{{ url_for('static', filename='333.mp4') }}" type="video/mp4">
+        </video>
+    </div>
+
+    <!-- 注册模态框 -->
+    <div id="register-modal" style="display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0, 0, 0, 0.4);">
+        <div style="background-color: transparent; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 30%;">
+            <h2>创建新账户</h2>
+            <form id="register-form">
+                <div id="input-box">
+                    <input type="text" name="username" placeholder="用户名" required>
+                    <input type="password" name="password" placeholder="密码" required>
+                </div>
+                <button type="submit">注册</button>
+                <button type="button" id="close-modal">取消</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 忘记密码模态框 -->
+    <!-- <div id="forgot-password-modal" style="display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0, 0, 0, 0.4);">
+        <div style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 30%;">
+            <h2>忘记密码</h2>
+            <form id="forgot-password-form">
+                <input type="email" name="email" placeholder="邮箱" required>
+                <button type="submit">提交</button>
+            </form>
+            <button id="close-forgot-password-modal">关闭</button>
+        </div>
+    </div> -->
+
+    <script>
+
+        // 打开注册模态框
+        document.getElementById('register-link').addEventListener('click', function(event) {
+            event.preventDefault(); // 防止链接默认行为
+            document.getElementById('register-modal').style.display = 'block';
+        });
+
+        // 关闭注册模态框
+        document.getElementById('close-modal').addEventListener('click', function() {
+            document.getElementById('register-modal').style.display = 'none';
+        });
+
+        // 处理注册表单提交
+        document.getElementById('register-form').addEventListener('submit', function(event) {
+            event.preventDefault(); // 防止表单默认提交行为
+
+            // 获取表单数据
+            const formData = new FormData(event.target);
+            const username = formData.get('username');
+            const password = formData.get('password');
+
+            // 发送注册请求
+            fetch('/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Registration successful!');
+                    window.location.href = '/';  // 添加了这一行
+                } else {
+                    alert(data.error);
+                }
+            })
+            .catch(error => {
+                alert('An error occurred while registering.');
+                console.error('Registration error:', error);
+            });
+        });
+
+
+        document.getElementById('login-button').addEventListener('click', function() {
+            event.preventDefault();
+            window.location.href = 'user_login';  // 当用户点击 "登录" 按钮时，跳转到 index.html 页面
+        });
+                
+    </script>
+</body>
+</html>

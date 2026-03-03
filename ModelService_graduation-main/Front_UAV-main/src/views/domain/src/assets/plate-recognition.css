@@ -1,0 +1,139 @@
+/* 车牌识别系统增强样式 */
+
+/* 拖拽上传区域增强 */
+.upload-area {
+  width: 100%;
+  border: 2px dashed #ff6600 !important;
+  border-radius: 8px;
+  padding: 30px;
+  text-align: center;
+  transition: all 0.3s;
+  background-color: rgba(255, 102, 0, 0.05) !important;
+}
+
+.upload-area:hover {
+  border-color: #ff4500 !important;
+  background-color: rgba(255, 102, 0, 0.1) !important;
+}
+
+.upload-text {
+  font-size: 16px;
+  font-weight: bold !important;
+  color: #333 !important;
+  margin: 10px 0 !important;
+}
+
+.upload-tip {
+  font-size: 14px;
+  color: #666 !important;
+}
+
+/* 识别信息增强 */
+.plate-details {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  background-color: #f5f7fa;
+  padding: 10px;
+  border-radius: 6px;
+  margin: 5px 0;
+}
+
+.plate-number {
+  font-size: 18px !important;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #303133 !important;
+  background-color: #fff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #dcdfe6;
+}
+
+/* 车牌颜色标签增强 */
+.plate-color-tag {
+  font-weight: bold !important;
+  color: #fff !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* 视频分析统计信息增强 */
+.video-stats {
+  margin-top: 16px;
+  background-color: #f5f7fa;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.video-stats h4 {
+  font-size: 18px !important;
+  color: #303133 !important;
+  border-left: 4px solid #ff6600;
+  padding-left: 10px;
+  margin-bottom: 15px !important;
+}
+
+/* 视频播放器增强 */
+.video-player {
+  background-color: #000;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.result-video {
+  width: 100%;
+  max-height: 450px;
+  border-radius: 4px;
+}
+
+/* 表格增强 */
+.plate-record-table {
+  margin-top: 10px;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.plate-record-table .el-table th {
+  background-color: #f5f7fa !important;
+  color: #303133 !important;
+  font-weight: bold !important;
+}
+
+/* 图片结果区域增强 */
+.result-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.original-image, .processed-image {
+  background: #f5f7fa;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.original-image h4, .processed-image h4 {
+  font-size: 16px;
+  color: #303133;
+  margin-bottom: 12px;
+  text-align: center;
+  border-bottom: 2px solid #ff6600;
+  padding-bottom: 5px;
+}
+
+/* 识别结果部分标题增强 */
+.result-section h3 {
+  font-size: 22px;
+  color: #303133;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #ff6600;
+  padding-bottom: 10px;
+  display: inline-block;
+}

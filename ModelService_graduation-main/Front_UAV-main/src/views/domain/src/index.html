@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>无人机地理管理系统</title>
+    <!-- 修改高德地图API引入，确保载入Geocoder插件 -->
+    <script type="text/javascript">
+        window.onload = function() {
+            // 高德地图API加载
+            var amapScript = document.createElement('script');
+            amapScript.type = 'text/javascript';
+            amapScript.src = 'https://webapi.amap.com/maps?v=2.0&key=5c98219ee72ff8b122e46b8167333eb9&plugin=AMap.Scale,AMap.ToolBar,AMap.Driving,AMap.Geocoder,AMap.TileLayer.Traffic,AMap.TileLayer.Satellite,AMap.Buildings';
+            document.head.appendChild(amapScript);
+
+            // 监听高德地图加载完成
+            amapScript.onload = function() {
+                console.log('高德地图API加载完成');
+                // 确保关键插件加载完成
+                AMap.plugin(['AMap.Geocoder', 'AMap.Driving'], function() {
+                    console.log('高德地图插件加载完成');
+                    // 触发自定义事件通知应用
+                    var event = new CustomEvent('amap:loaded');
+                    window.dispatchEvent(event);
+                });
+            };
+        };
+    </script>
+</head>
+
+<body>
+    <div id="app"></div>
+</body>
+
+</html>

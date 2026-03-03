@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>视频播放</title>
+    <link rel="icon" href="{{ url_for('static', filename='IcoWebsite.ico') }}">
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow-y: auto; /* 允许垂直滚动 */
+        }
+        body {
+            background-image: url('/static/222.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        .hidden {
+            display: none;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            justify-content: space-around;
+        }
+        .video-container, .image-container {
+            width: 96%;
+            left: 2%;
+            height: auto;
+            margin-bottom: 10px;
+        }
+        .video-container {
+            background-color: rgba(230, 222, 204, 0.5);
+            border-radius: 30px;
+            top: 0px; 
+            width: 60%;
+            left: 5%;
+            height: 40vh;
+            border: 2px solid #3c0c0c;
+            position: relative;
+        }
+        .image-container {
+            background-color: rgba(230, 222, 204, 0.5);
+            border-radius: 30px;
+            top: -50px; 
+            width: 60%;
+            left: 5%;
+            height: 40vh;
+            border: 2px solid #3c0c0c;
+            position: relative;
+        }
+        .image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .terminal-container {
+            background-color: rgba(230, 222, 204, 0.5);
+            position: absolute;
+            right: 5%;
+            top: 80px;
+            width: 25%;
+            height: 70vh;
+            border: 2px solid #3c0c0c;
+            border-radius: 30px;
+            overflow: auto;
+            padding: 10px;
+        }
+        #video-player {
+            width: 100%;
+            height: 100%;
+        }
+        .button-container button {
+            border-radius: 50%;
+            border: 2px solid #14686b;
+            padding: 0.8em 1.2em; 
+        }
+        .custom-file-button {
+            background-color: #a39c90;
+            color: white;
+            border: 2px solid #c6c2b5;
+            border-radius: ⅓em;
+            font-size: 1em;
+            padding: 0.5em 1em;
+            transition: background-color 0.3s ease;
+        }
+        .custom-file-button:hover {
+            background-color: #c2a041;
+            color: #3c0c0c;
+        }
+        .button-container {
+            position: fixed;
+            bottom: 20px;
+            right: 10px;
+            transform: none; 
+            background-color: rgba(230, 222, 204, 0.5);
+            color: white;
+            border: none;
+            padding: 1em 2em;
+            cursor: pointer;
+        }
+        .button-container :hover {
+            background-color: #d2ab58;
+            color: #3c0c0c;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        #video-wrapper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            min-width: 100%;
+            min-height: 100%;
+            z-index: -100;
+            overflow: hidden;
+        }
+        #video-wrapper video {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            transform: translateX(-50%) translateY(-50%);
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+</head>
+<body>
+<div class="container">
+    <div class="video-container">
+        <video id="video-player" class="hidden" controls></video>
+    </div>
+    <div class="image-container">
+        <img id="videoPlayback" alt=""/>
+    </div>
+    <div class="terminal-container" id="terminalOutput">
+        <!-- 终端内容将在这里添加 -->
+    </div>
+</div>
+<div id="video-wrapper">
+    <video autoplay loop muted>
+      <source src="video2.mp4" type="video/mp4">
+    </video>
+</div>
+<div class="button-container">
+    <input type="file" id="video-upload" class="custom-file-button" accept="video/*" placeholder="选择视频文件">
+    <button id="start-button" class="start-button">开始播放</button>
+    <button id="pause-button" class="pause-button">暂停播放</button>
+    <button id="clear-button" class="clear-button">清除视频</button>
+    <button id="upload-button" class="clear-button">上传视频</button>
+    <button id="stop-sending-button">停止发送信息</button>
+</div>
+
+<script>
+    // Socket.io 连接
+    const socket = io.connect({ transports: ['polling'] }, { timeout: 1000000 });
+        
+    const videoUploadInput = document.getElementById('video-upload');
+    const startButton = document.getElementById('start-button');
+    const pauseButton = document.getElementById('pause-button');
+    const clearButton = document.getElementById('clear-button');
+    const videoPlayer = document.getElementById('video-player');
+    const videoPlaybackImg = document.getElementById('videoPlayback');
+    const uploadButton = document.getElementById('upload-button');
+    const stopSendingButton = document.getElementById('stop-sending-button');
+    let videoPlaying = false;
+    let sendingInfo = true;
+
+    
+    socket.on('connect', () => {
+        console.log('Connected to server');
+
+        // 车牌信息显示            
+        socket.on('plate info', (plateInfo) => {
+            if (sendingInfo) {
+                const newInfo = document.createElement('p');
+                newInfo.textContent = plateInfo;
+                terminalOutput.appendChild(newInfo);
+                terminalOutput.scrollTop = terminalOutput.scrollHeight;
+            }
+        });
+
+
+        // 在你的JavaScript代码中添加这个函数
+        let isValidBase64 = (str) => {
+            try {
+                return btoa(atob(str)) == str;
+            } catch (err) {
+                return false;
+            }
+        };
+
+        // 在你的socket事件处理器中调用这个函数
+        socket.on('image data', (data) => {
+        console.log('Connected to imageData');
+            if (videoPlaying && sendingInfo) {
+                // 在设置图片源之前,先检查数据是否是有效的Base64字符串
+                if (isValidBase64(data.image)) {
+                    videoPlaybackImg.src = 'data:image/jpeg;base64,' + data.image;
+                    // 设置图片的帧数
+                    videoPlaybackImg.setAttribute('data-frame-count', data.frame_count);
+                } else {
+                    console.error('Invalid image data');
+                }
+            }
+            console.log('Image data received');
+        });
+
+        socket.on('frame_count', (data) => {
+            console.log('Connected to frame_count');
+            if (sendingInfo) {
+                const newInfo = document.createElement('p');
+                newInfo.textContent = data;
+                terminalOutput.appendChild(newInfo);
+                terminalOutput.scrollTop = terminalOutput.scrollHeight;
+            }
+        });
+
+    });
+
+    socket.on('connect_error', (error) => {
+        console.log('Connect error: ', error);
+    });
+
+    socket.on('connect_timeout', (timeout) => {
+        console.log('Connect timeout: ', timeout);
+    });
+
+    startButton.addEventListener('click', () => {
+        console.log("Start button clicked(单击开始)");
+        if (videoUploadInput.files.length > 0) {
+            console.log("Number of uploaded files: " + videoUploadInput.files.length);  // 添加这行代码
+            const videoFile = videoUploadInput.files[0];
+            const videoURL = URL.createObjectURL(videoFile);
+
+            videoPlayer.src = videoURL;
+            videoPlayer.classList.remove('hidden');
+            videoPlayer.play();
+            videoPlaying = true;
+            startButton.disabled = true;
+            pauseButton.disabled = false;
+
+            socket.on('disconnect', function() {
+                console.log('Disconnected from server');
+            });
+
+            //socket.emit('start_video', {}, '/video_upload');
+            socket.emit('start_video', {data: 'I\'m connected!'});
+            console.log("'start_video' event emitted");  // 添加这行代码
+        }
+    });
+
+    pauseButton.addEventListener('click', () => {
+        videoPlayer.pause();
+        videoPlaying = false;
+        startButton.disabled = false;
+        pauseButton.disabled = true;
+        socket.emit('pause_video');
+    });
+
+    uploadButton.addEventListener('click', function() {
+        var fileInput = document.getElementById('video-upload');
+        var file = fileInput.files[0];
+    
+        if (!file) {
+            alert('请先选择一个文件');
+            return;
+        }
+    
+        var formData = new FormData();
+        formData.append('video', file);
+    
+        fetch('/video_upload', {
+            method: 'POST',
+            body: formData
+        }).then(function(response) {
+            console.log('Upload successful');
+        }).catch(function(error) {
+            console.error('Upload failed:', error);
+        });
+    });
+
+    clearButton.addEventListener('click', () => {
+        videoPlayer.src = '';
+        videoPlayer.classList.add('hidden');
+        videoPlaying = false;
+        startButton.disabled = false;
+        pauseButton.disabled = true;
+        terminalOutput.innerHTML = ''; // 清空终端输出内容
+        videoPlaybackImg.src = ''; // 清空图片显示区域的图片源
+        socket.emit('clear_video');
+    });
+
+    stopSendingButton.addEventListener('click', () => {
+        sendingInfo = !sendingInfo;
+        if (sendingInfo) {
+            stopSendingButton.textContent = '停止发送信息';
+        } else {
+            stopSendingButton.textContent = '开始发送信息';
+        }
+    });
+
+    // 断开连接处理
+    socket.on('disconnect', () => {
+        console.log('Client disconnected from server');
+    });
+
+</script>
+</body>
+</html>

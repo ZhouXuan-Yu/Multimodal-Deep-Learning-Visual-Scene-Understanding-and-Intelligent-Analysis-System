@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录</title>
+    <link rel="icon" href="{{ url_for('static', filename='IcoWebsite.ico') }}">
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: linear-gradient(to bottom right, #9ea3be, #1f1e20);
+            font-family: Arial, sans-serif;
+        }
+        .login-container {
+            background-color: rgba(4, 7, 21, 0.5);
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 320px;
+            text-align: center;
+        }
+        h1 {
+            margin-bottom: 2rem;
+            color: #fff;
+        }
+        form > input {
+            width: calc(100% - 20px);
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        input[type="submit"], input[type="reset"], a {
+            background-color: #6a676c;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            margin-top: 10px;
+            border-radius: 5px;
+            width: 100%;
+            box-sizing: border-box;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        input[type="submit"]:hover, input[type="reset"]:hover, a:hover {
+            background-color: #acc2b6;
+            color: #65636c;
+        }
+        .message {
+            padding: 10px;
+            margin-top: 15px;
+            border: 1px solid transparent;
+            border-radius: 5px;
+            color: #fff;
+            background-color: #2e2b2b;
+        }
+        #video-wrapper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            min-width: 100%;
+            min-height: 100%;
+            z-index: -100;
+            overflow: hidden;
+        }
+
+        #video-wrapper video {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            transform: translateX(-50%) translateY(-50%);
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>用户登录</h1>
+        <form method="POST">
+            <input type="text" name="username" placeholder="请输入用户名" required />
+            <input type="password" name="password" placeholder="请输入密码（小于12位）" required />
+            {% if message %}<div class="message">{{ message }}</div>{% endif %}
+            <input type="submit" value="登录" />
+            <input type="reset" value="重置" />
+            <a href="{{ url_for('register') }}">注册</a>
+        </form>
+    </div>
+    <div id="video-wrapper">
+            <!-- <video src="{{ url_for('static', filename='1.mp4') }}" controls></video> -->
+        <video id="video-wrapper" autoplay loop muted>
+            <source src="{{ url_for('static', filename='1.mp4') }}" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+
+</body>
+</html>

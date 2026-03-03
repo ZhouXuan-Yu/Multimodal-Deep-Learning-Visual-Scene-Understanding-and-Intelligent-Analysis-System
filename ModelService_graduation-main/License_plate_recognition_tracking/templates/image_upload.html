@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>车牌识别系统 - 上传图片</title>
+    <link rel="icon" href="{{ url_for('static', filename='IcoWebsite.ico') }}">
+    <style>
+        #results {
+            color: rgb(14, 243, 243); /* 设置字体颜色为蓝色 */
+        }
+        .content {
+            position: relative;
+            z-index: 1; /* 确保内容在背景图片之上 */
+        }
+        p {
+            text-align: left;
+        }
+        .upload-area h1 {
+            margin-bottom: 20px;
+            font: 4rem 'kaiti', sans-serif;
+        }
+        
+        body, html {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        overflow-y: auto; /* 允许垂直滚动 */
+        }
+        .bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            min-width: 100%;
+            min-height: 100%;
+            z-index: -1;
+            object-fit: cover;
+        }
+        h2, h3 {
+            color: #f5f8f8; /* 设置标题文字颜色 */
+        }
+    
+        .content-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+    
+        .box {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 20px 0;
+            background-color: transparent; /* 设置背景颜色为透明 */
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            height: 400px; /* 统一高度 */
+            width: 500px; /* 统一宽度 */
+        }
+    
+        .box img,
+        .box #results {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+            height: auto;
+        }
+    
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+    
+        .upload-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            padding: 10px;
+            background: transparent;
+            border-radius: 15px;
+            margin-top: 10px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+        }
+    
+        button {
+            background-color: #d6e5d6;
+            color: rgb(20, 19, 19);
+            padding: 12px 24px;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+    
+        button:hover {
+            background-color: #1370a6;
+        }
+    
+        input[type="file"] {
+            padding: 10px;
+            border: 4px dashed #136bae;
+            border-radius: 50px;
+            margin: 10px 0;
+            background: #1370a6;
+            transition: border-color 0.3s ease;
+        }
+    
+        input[type="file"]:hover {
+            border-color: #1370a6;
+        }
+    
+        .img-container {
+            overflow: hidden;
+            width: 390px; /* 统一宽度 */
+            height: 260px; /* 统一高度 */
+            position: relative;
+            cursor: zoom-in;
+            margin: 20px;
+            border: 4px solid transparent;
+            border-radius: 15px;
+            background: transparent;
+            transition: border-color 0.3s ease;
+        }
+    
+        .img-container:hover {
+            border-color: #151718
+        }
+
+        #resultsContainer {
+            /* 设置高度，你可以根据需要调整这个值 */
+            height: 300px;
+            /* 设置当内容超出容器时显示滚动条 */
+            overflow: auto;
+        }
+</style>
+</head>
+<body>
+    <video autoplay loop muted class="bg" width="myVideo" height="bg">
+        <source src="{{ url_for('static', filename='111.mp4') }}" type="video/mp4">
+    </video>
+    <div class="upload-area">
+        <h1>车牌识别系统</h1>
+        <input type="file" name="file" id="file" onchange="previewImage();" accept="image/png, image/jpeg">
+        <button onclick="uploadImage()">上传图片</button>
+        <button id="clearContent" style="margin-left:auto;">清除全部内容</button>
+    </div>
+    <div class="content-row">
+        <div class="box">
+            <h3>原始图片:</h3>
+            <div class="img-container">
+                <img id="preview" src="#" alt=""/>
+            </div>
+        </div>
+        <div class="box">
+            <h3>处理后的图片:</h3>
+            <div class="img-container">             
+                <img id="processedPreview" src="#" alt=""/>
+            </div>
+        </div>           
+        
+        <div class="box">
+            <h3>识别结果:</h3>
+            <div class="img-container" id="resultsContainer">
+                <div id="results"></div>
+            </div>
+        </div>
+    </div>
+
+    
+
+    
+
+    <script>
+        function previewImage() {
+            var file = document.getElementById("file").files;
+            if (file.length > 0) {
+                var fileReader = new FileReader();
+
+                fileReader.onload = function (event) {
+                    document.getElementById("preview").setAttribute("src", event.target.result);
+                    document.getElementById("preview").style.display = "block";
+                };
+
+                fileReader.readAsDataURL(file[0]);
+            }
+        }
+
+        function uploadImage() {
+            var formData = new FormData();
+            var fileInput = document.getElementById("file");
+            formData.append("file", fileInput.files[0]);
+
+            fetch("/upload_image", {
+                method: "POST",
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data);
+                
+                if (data.processed_img_url) {
+                    // 将图片的 URL 中的 '/uploads/' 改为 '/output/'
+                    var newUrl = data.processed_img_url.replace('/uploads/', '/output/');
+                    document.getElementById("processedPreview").setAttribute("src", newUrl);
+                    document.getElementById("processedPreview").style.display = "block";
+                }
+                if (data.results) {
+                    // 显示结果容器
+                    document.getElementById("resultsContainer").style.display = "block";
+
+                    // 格式化并展示结果
+                    var resultsElement = document.getElementById("results");
+                    resultsElement.innerHTML = ""; // 清空之前的结果
+                    data.results.forEach(function(result) {
+                    if (result.object_no === 2) { // 汽车
+                        resultsElement.innerHTML += `<p>车辆类型: ${result.class_type},<br>车辆颜色: ${result.car_color},<br>置信度: ${result.color_conf}</p>`;
+                    } else { // 车牌
+                        resultsElement.innerHTML += `<p>车牌号: ${result.plate_no}, <br>车牌颜色: ${result.plate_color}</p>`;
+                    }
+                });
+
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const containers = document.querySelectorAll('.img-container');
+
+            containers.forEach((container) => {
+                const img = container.querySelector('img');
+                img.style.transformOrigin = 'center center'; // 设置缩放原点为中心
+                let scale = 1; // 初始缩放比例为1
+
+                // 缩放功能
+                container.addEventListener('wheel', (e) => {
+                    e.preventDefault(); // 阻止默认滚动行为
+                    const ZOOM_SPEED = 0.01; // 缩放速度
+                    const delta = e.deltaY * -ZOOM_SPEED; // deltaY为正时表示向下滚动，负时向上
+                    const newScale = Math.max(0.5, Math.min(scale + delta, 4)); // 限制缩放范围
+
+                    // 计算和应用新的缩放比例
+                    scale = newScale;
+                    img.style.transform = `scale(${scale})`;
+                    // 注意，我们移除了translate的部分，因为我们希望图片始终以中心为缩放点
+                });
+
+                // 拖拽功能（保持不变）
+                let isDragging = false;
+                let startX, startY;
+                let translateX = 0, translateY = 0;
+                let prevX = 0, prevY = 0;
+
+                container.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    isDragging = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    container.style.cursor = 'grabbing';
+                });
+
+                container.addEventListener('mousemove', (e) => {
+                    if (isDragging) {
+                        const dx = e.clientX - startX;
+                        const dy = e.clientY - startY;
+                        translateX = prevX + dx;
+                        translateY = prevY + dy;
+                        img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+                    }
+                });
+
+                container.addEventListener('mouseup', () => {
+                    isDragging = false;
+                    container.style.cursor = 'grab';
+                    prevX = translateX;
+                    prevY = translateY;
+                });
+
+                container.addEventListener('mouseleave', () => {
+                    if (isDragging) {
+                        isDragging = false;
+                        container.style.cursor = 'grab';
+                        prevX = translateX;
+                        prevY = translateY;
+                    }
+                });
+            });
+        });
+
+        document.getElementById("clearContent").addEventListener("click", clearContent);
+            function clearContent() {
+                // 清除图片预览
+                document.getElementById("preview").setAttribute("src", "#");   
+                document.getElementById("processedPreview").setAttribute("src", "#");   
+                document.getElementById("preview").style.display = "none";   
+                document.getElementById("processedPreview").style.display = "none";  
+
+                // 清除识别结果
+                document.getElementById("results").innerHTML = "";
+                // document.getElementById("resultsContainer").style.display = "none"; // 隐藏结果容器
+            
+
+}
+
+
+
+
+
+
+    </script>
+</body>
+</html>

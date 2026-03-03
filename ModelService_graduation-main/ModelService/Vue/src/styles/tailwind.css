@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 自定义全局样式 */
+
+@layer base {
+    body {
+        @apply font-sans text-dark bg-light;
+    }
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        @apply font-bold;
+    }
+    h1 {
+        @apply text-4xl md: text-5xl lg: text-6xl;
+    }
+    h2 {
+        @apply text-3xl md: text-4xl;
+    }
+    h3 {
+        @apply text-2xl md: text-3xl;
+    }
+    p {
+        @apply text-gray-700;
+    }
+}
+
+
+/* 共享组件样式 */
+
+@layer components {
+    .btn {
+        @apply px-6 py-3 rounded-md font-medium transition duration-300;
+    }
+    .btn-primary {
+        @apply btn bg-primary text-white hover: bg-blue-600;
+    }
+    .btn-secondary {
+        @apply btn bg-secondary text-white hover: bg-blue-400;
+    }
+    .btn-outline {
+        @apply btn border-2 border-primary text-primary hover: bg-primary hover: text-white;
+    }
+    .container-custom {
+        @apply container mx-auto px-4 md: px-8;
+    }
+    .section {
+        @apply py-12 md: py-20;
+    }
+}

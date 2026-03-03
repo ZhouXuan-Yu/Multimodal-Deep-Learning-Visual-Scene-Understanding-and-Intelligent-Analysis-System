@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>交通分析与视频处理</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="icon" href="{{ url_for('static', filename='IcoWebsite.ico') }}">
+    <style>
+        body {
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .card {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            margin-bottom: 20px;
+            transition: transform 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .card-title {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .card-text {
+            font-size: 16px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .btn-primary:hover {
+            background-color: #0069d9;
+            border-color: #0062cc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">交通分析与视频处理</h1>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">交通分析</h5>
+                        <p class="card-text">使用视频数据分析交通流量和车辆行为。通过分析视频中的车辆轨迹、速度和密度,可以获得有关交通流量和拥堵情况的宝贵见解。</p>
+                        <a href="/traffic_analysis" class="btn btn-primary">开始分析</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">视频处理</h5>
+                        <p class="card-text">对视频进行目标检测和跟踪。使用先进的计算机视觉算法,可以实时检测视频中的目标对象,如车辆、行人等,并对其进行跟踪和分析。</p>
+                        <a href="/video_processing" class="btn btn-primary">开始处理</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
