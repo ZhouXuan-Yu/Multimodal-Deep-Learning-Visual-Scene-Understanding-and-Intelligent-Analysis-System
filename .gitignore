@@ -1,0 +1,148 @@
+### Node / Vue / Frontend
+node_modules/
+dist/
+build/
+.cache/
+.vite/
+.nuxt/
+.next/
+.turbo/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Env files (keep only examples)
+.env
+.env.*
+!.env.example
+
+# Lock files – 通常建议提交锁文件以保证依赖可复现
+# 如果你明确不想提交某种锁文件，可以取消注释对应行
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+
+### Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+
+
+### Jupyter / 临时文件
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+
+### YOLO / 训练产物 / 大文件
+# YOLO 训练输出（建议不进仓库，仅保留少量小样例）
+runs/
+wandb/
+
+# 数据缓存
+**/*.cache
+data/cache/
+
+# 数据集（建议完全不进仓库，使用外部下载脚本）
+datasets/
+UNISV-Dataset-main/
+Ultra_long_distance_recognition/data/
+
+# 权重目录（推荐：只保留 README 和下载脚本，或使用 LFS）
+weights/
+ModelService/Main/model/output/
+ModelService/Main/model/z_model_use/model/
+ModelService/Main/models/
+Firedetection/Output/
+
+# 常见模型权重 / 导出格式（建议：走 Git LFS 或完全不进仓库）
+*.pt
+*.pth
+*.onnx
+*.engine
+*.trt
+*.plan
+*.mlmodel
+*.tflite
+*.h5
+*.ckpt
+*.pb
+
+# 训练/推理生成的视频和大图（只保留极少数示例）
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.gif
+*.webm
+
+# 其他大体积二进制
+*.npz
+*.npy
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+
+### 应用运行时产物
+ModelService/Main/app/static/debug/
+ModelService/Main/app/static/plate_monitoring/
+ModelService/Main/static/
+
+
+### 安全相关（一定不要提交）
+*.pem
+*.key
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+*.pfx
+*.p12
+*.cer
+*.crt
+*credentials*
+*credential*
+*token*
+*secret*
+*apikey*
+
