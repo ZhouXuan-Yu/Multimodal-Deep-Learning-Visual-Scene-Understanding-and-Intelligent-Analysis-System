@@ -1,4 +1,4 @@
-### Git LFS tracking for large model artifacts
+mama### Git LFS tracking for large model artifacts
 # 方案 A（推荐）：权重走 LFS，数据集不进仓库
 *.pt filter=lfs diff=lfs merge=lfs -text
 *.pth filter=lfs diff=lfs merge=lfs -text
