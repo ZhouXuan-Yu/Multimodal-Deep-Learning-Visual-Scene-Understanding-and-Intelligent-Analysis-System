@@ -22,7 +22,7 @@
     </div>
     
     <div v-if="imageUrl" class="preview-container">
-      <img :src="imageUrl" alt="上传预览" class="preview-image" />
+      <img v-if="!props.hidePreview" :src="imageUrl" alt="上传预览" class="preview-image" />
       <div class="image-controls">
         <button @click="removeImage" class="control-button remove-button">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-5 h-5">
@@ -78,6 +78,11 @@ const props = defineProps({
   analysisProgress: {
     type: Number,
     default: 0
+  },
+  // 当结果区已经展示同一张图片时，隐藏上传区的重复预览图，避免出现“上面多一张照片”
+  hidePreview: {
+    type: Boolean,
+    default: false
   }
 });
 

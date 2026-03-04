@@ -13,10 +13,13 @@ const title = '智眸千析';
 // 状态管理
 const analysisResult = ref(null);
 const activePersonId = ref(null);
+const highlightedPersonIndex = ref(null);
 const isAnalyzing = ref(false);
 const analysisProgress = ref(0);
 const progressTimer = ref(null);
 const notification = ref({ show: false, message: '', type: 'info' });
+// 当后端未返回 image_url 时，我们会用 URL.createObjectURL 生成本地预览；需要在重置/切换时释放
+const localObjectUrl = ref(null);
 
 // 处理文件分析
 const handleAnalyze = async (data) => {
@@ -55,22 +58,20 @@ const handleAnalyze = async (data) => {
     
     // 确保图片URL添加到结果中
     if (result && !result.image_url) {
-      result.image_url = URL.createObjectURL(data.file);
+      // 释放上一次生成的 objectURL，避免内存泄漏
+      if (localObjectUrl.value) {
+        URL.revokeObjectURL(localObjectUrl.value);
+        localObjectUrl.value = null;
+      }
+      localObjectUrl.value = URL.createObjectURL(data.file);
+      result.image_url = localObjectUrl.value;
     }
     
     // 确保检测到的人物数据格式正确
     if (result && result.persons && result.persons.length > 0) {
       // 确保每个人物对象包含必要字段
       result.persons = result.persons.map((person, index) => {
-        // 处理bbox格式，确保它是[x1, y1, x2, y2]格式
-        if (person.bbox && person.bbox.length === 4) {
-          // 如果bbox是[x, y, width, height]格式，转换为[x1, y1, x2, y2]
-          if (person.bbox[2] < person.bbox[0] || person.bbox[3] < person.bbox[1]) {
-            const [x, y, width, height] = person.bbox;
-            person.bbox = [x, y, x + width, y + height];
-            console.log(`转换bbox格式 for 人物${index}:`, person.bbox);
-          }
-        }
+        // bbox 在后端统一为 xyxy（像素坐标）。这里不再猜测/转换为 xywh，避免误判导致画框错乱。
         
         // 确保所有必要字段都有默认值
         return {
@@ -120,11 +121,22 @@ const handleAnalyze = async (data) => {
 const handleResetAnalysis = () => {
   analysisResult.value = null;
   activePersonId.value = null;
+  highlightedPersonIndex.value = null;
+  if (localObjectUrl.value) {
+    URL.revokeObjectURL(localObjectUrl.value);
+    localObjectUrl.value = null;
+  }
 };
 
 // 处理选择人物
 const handleSelectPerson = (personId) => {
   activePersonId.value = personId;
+};
+
+// 助手/列表触发的高亮
+const highlightPerson = (index) => {
+  highlightedPersonIndex.value = index;
+  activePersonId.value = index;
 };
 
 // 处理导出完成
@@ -149,6 +161,10 @@ const showNotification = (message, type = 'info') => {
   setTimeout(() => {
     notification.value.show = false;
   }, 3000);
+};
+
+const closeNotification = () => {
+  notification.value.show = false;
 };
 
 // 开始进度动画
@@ -248,13 +264,19 @@ const generateMockAnalysisResult = (file, mode) => {
             <image-uploader 
               @analyze="handleAnalyze" 
               @error="handleError"
+              @remove-image="handleResetAnalysis"
               :isProcessing="isAnalyzing"
+              :analysisProgress="analysisProgress"
+              :hidePreview="!!analysisResult"
             />
             
             <analysis-results 
               v-if="analysisResult" 
               :analysis-result="analysisResult" 
               :highlighted-person-index="highlightedPersonIndex"
+              @reset="handleResetAnalysis"
+              @export-complete="handleExportComplete"
+              @select-person="handleSelectPerson"
             />
           </div>
           
@@ -262,7 +284,6 @@ const generateMockAnalysisResult = (file, mode) => {
             <analysis-assistant 
               :analysis-result="analysisResult"
               @highlight-person="highlightPerson"
-              ref="assistantRef"
             />
           </div>
         </div>

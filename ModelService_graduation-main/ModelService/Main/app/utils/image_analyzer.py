@@ -7,12 +7,16 @@ import cv2
 import os
 from pathlib import Path
 import numpy as np
-import mediapipe as mp
+try:
+    import mediapipe as mp  # type: ignore
+except ImportError:
+    # mediapipe 是可选依赖：缺失时不影响本项目的几何/分割回退逻辑
+    mp = None
 from torchvision.models.segmentation import deeplabv3_resnet50
 import logging
 import threading
 from queue import Queue
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import warnings
 from ultralytics import YOLO
 from scipy import ndimage
@@ -37,6 +41,20 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# --- torch.load compatibility (PyTorch 2.6+ weights_only default change) ---
+def _torch_load_compat(path: str, map_location=None) -> Any:
+    """
+    兼容 PyTorch 2.6+ 默认 weights_only=True 的行为。
+    对于本项目内训练得到的 checkpoint，我们需要允许反序列化完整对象结构。
+
+    - 新版本：显式使用 weights_only=False
+    - 旧版本：自动回退到不带该参数的 torch.load
+    """
+    try:
+        return torch.load(path, map_location=map_location, weights_only=False)
+    except TypeError:
+        return torch.load(path, map_location=map_location)
 
 # 获取项目根目录
 ROOT_DIR = Path(__file__).parent.parent.parent
@@ -83,7 +101,7 @@ class ColorModel(ModelBase):
     def load_model(self):
         """加载颜色分类模型"""
         try:
-            checkpoint = torch.load(self.model_path, map_location=self.device)
+            checkpoint = _torch_load_compat(self.model_path, map_location=self.device)
             if isinstance(checkpoint, dict) and 'classes' in checkpoint:
                 self.classes = checkpoint['classes']
                 if 'model_state_dict' in checkpoint:
@@ -169,7 +187,7 @@ class AgeModel(ModelBase):
             self.model = AgeEstimationModel(num_classes=len(self.age_classes))
             
             # 加载权重
-            checkpoint = torch.load(self.model_path, map_location=self.device)
+            checkpoint = _torch_load_compat(self.model_path, map_location=self.device)
             if isinstance(checkpoint, dict):
                 if 'model_state_dict' in checkpoint:
                     state_dict = checkpoint['model_state_dict']
@@ -310,7 +328,8 @@ class ImageAnalyzer(metaclass=Singleton):
         self.models = {}
         self.model_paths = self._get_model_paths()
         # 人脸检测置信度阈值（适当调低以尽量多检出）
-        self.face_conf_threshold = 0.25
+        # 过低会导致同一张脸产生多个重叠框（前端看起来像“一个人被识别成好几个”）
+        self.face_conf_threshold = 0.4
         self.deeplabv3 = None
         self.transform = transforms.Compose([
             transforms.Resize((256, 256)),
@@ -768,52 +787,86 @@ class ImageAnalyzer(metaclass=Singleton):
             
             logger.info(f"本地模型检测到 {len(local_persons)} 人")
             logger.info(f"Qwen-VL检测到 {len(qwen_persons)} 人")
-            
-            # 使用 Qwen-VL 的检测结果作为主要结果
-            merged_result["detected"] = len(qwen_persons) or len(local_persons)
-            
-            # 对每个检测到的人物进行结果合并
+
+            # ✅ 关键：增强模式合并以“本地检测结果”为准（人数/框），避免大模型幻觉导致人数飙升、框乱飞
+            # Qwen-VL 仅用于在本地模型不确定/unknown 时补充语义（gender/age/color），而不是用来决定检测到几个人。
+            merged_result["detected"] = len(local_persons) if local_persons else len(qwen_persons)
+
+            def _is_unknown(v):
+                if v is None:
+                    return True
+                if isinstance(v, str):
+                    return v.strip().lower() in {"", "unknown", "未知", "unk"}
+                return False
+
+            def _low_conf(v, threshold: float = 0.4) -> bool:
+                try:
+                    return float(v) < threshold
+                except Exception:
+                    return True
+
+            # 对每个“本地检测到的人物”按索引合并（不尝试用Qwen的bbox匹配，避免坐标体系不一致）
             for i in range(merged_result["detected"]):
-                qwen_person = qwen_persons[i] if i < len(qwen_persons) else None
                 local_person = local_persons[i] if i < len(local_persons) else None
-                
-                # 如果 Qwen-VL 有结果，优先使用其语义信息，但几何框优先沿用本地检测的 bbox，
-                # 这样增强模式和普通模式的框位置保持一致，避免大模型返回坐标体系不一致导致前端框选错位。
-                if qwen_person:
-                    person_data = {
-                        "gender": qwen_person.get("gender", "unknown"),
-                        "gender_confidence": qwen_person.get("gender_confidence", 0.0) * qwen_weight,
-                        "age": qwen_person.get("age", 0),
-                        "age_confidence": qwen_person.get("age_confidence", 0.0) * qwen_weight,
-                        "upper_color": qwen_person.get("upper_color", "unknown"),
-                        "upper_color_confidence": qwen_person.get("upper_color_confidence", 0.0) * qwen_weight,
-                        "lower_color": qwen_person.get("lower_color", "unknown"),
-                        "lower_color_confidence": qwen_person.get("lower_color_confidence", 0.0) * qwen_weight,
-                        # 默认先用 Qwen 的 bbox，后面如果有本地 bbox 再覆盖
-                        "bbox": qwen_person.get("bbox", [0, 0, 0, 0]),
-                    }
-                    # 如果本地检测有人脸框，则优先使用本地的 bbox / upper_bbox / lower_bbox
-                    if local_person is not None:
-                        if "bbox" in local_person:
-                            person_data["bbox"] = local_person.get("bbox", person_data["bbox"])
-                        if "upper_bbox" in local_person:
-                            person_data["upper_bbox"] = local_person.get("upper_bbox")
-                        if "lower_bbox" in local_person:
-                            person_data["lower_bbox"] = local_person.get("lower_bbox")
-                # 如果只有本地模型结果
-                elif local_person:
-                    person_data = {
+                qwen_person = qwen_persons[i] if i < len(qwen_persons) else None
+
+                if local_person is None and qwen_person is None:
+                    continue
+
+                # 先以本地为基准构建 person_data（包含 bbox / upper_bbox / lower_bbox）
+                person_data = {}
+                if local_person is not None:
+                    person_data.update({
                         "gender": local_person.get("gender", "unknown"),
-                        "gender_confidence": local_person.get("gender_confidence", 0.0) * local_weight,
+                        "gender_confidence": float(local_person.get("gender_confidence", 0.0)),
                         "age": local_person.get("age", 0),
-                        "age_confidence": local_person.get("age_confidence", 0.0) * local_weight,
+                        "age_confidence": float(local_person.get("age_confidence", 0.0)),
                         "upper_color": local_person.get("upper_color", "unknown"),
-                        "upper_color_confidence": local_person.get("upper_color_confidence", 0.0) * local_weight,
+                        "upper_color_confidence": float(local_person.get("upper_color_confidence", 0.0)),
                         "lower_color": local_person.get("lower_color", "unknown"),
-                        "lower_color_confidence": local_person.get("lower_color_confidence", 0.0) * local_weight,
-                        "bbox": local_person.get("bbox", [0, 0, 0, 0])
-                    }
-                
+                        "lower_color_confidence": float(local_person.get("lower_color_confidence", 0.0)),
+                        "bbox": local_person.get("bbox", [0, 0, 0, 0]),
+                    })
+                    if "upper_bbox" in local_person:
+                        person_data["upper_bbox"] = local_person.get("upper_bbox")
+                    if "lower_bbox" in local_person:
+                        person_data["lower_bbox"] = local_person.get("lower_bbox")
+                else:
+                    # 没有本地结果时，退化为Qwen（bbox也只能信Qwen）
+                    person_data.update({
+                        "gender": qwen_person.get("gender", "unknown"),
+                        "gender_confidence": float(qwen_person.get("gender_confidence", 0.0)),
+                        "age": qwen_person.get("age", 0),
+                        "age_confidence": float(qwen_person.get("age_confidence", 0.0)),
+                        "upper_color": qwen_person.get("upper_color", "unknown"),
+                        "upper_color_confidence": float(qwen_person.get("upper_color_confidence", 0.0)),
+                        "lower_color": qwen_person.get("lower_color", "unknown"),
+                        "lower_color_confidence": float(qwen_person.get("lower_color_confidence", 0.0)),
+                        "bbox": qwen_person.get("bbox", [0, 0, 0, 0]),
+                    })
+
+                # 用Qwen补齐“unknown/低置信度”的语义字段（不改bbox）
+                if qwen_person is not None:
+                    # gender
+                    if _is_unknown(person_data.get("gender")) or _low_conf(person_data.get("gender_confidence")):
+                        if not _is_unknown(qwen_person.get("gender")):
+                            person_data["gender"] = qwen_person.get("gender", person_data.get("gender"))
+                            person_data["gender_confidence"] = float(qwen_person.get("gender_confidence", person_data.get("gender_confidence", 0.0)))
+                    # age
+                    if (person_data.get("age") in (None, 0)) or _low_conf(person_data.get("age_confidence")):
+                        if qwen_person.get("age") not in (None, 0):
+                            person_data["age"] = qwen_person.get("age", person_data.get("age"))
+                            person_data["age_confidence"] = float(qwen_person.get("age_confidence", person_data.get("age_confidence", 0.0)))
+                    # colors
+                    if _is_unknown(person_data.get("upper_color")) or _low_conf(person_data.get("upper_color_confidence")):
+                        if not _is_unknown(qwen_person.get("upper_color")):
+                            person_data["upper_color"] = qwen_person.get("upper_color", person_data.get("upper_color"))
+                            person_data["upper_color_confidence"] = float(qwen_person.get("upper_color_confidence", person_data.get("upper_color_confidence", 0.0)))
+                    if _is_unknown(person_data.get("lower_color")) or _low_conf(person_data.get("lower_color_confidence")):
+                        if not _is_unknown(qwen_person.get("lower_color")):
+                            person_data["lower_color"] = qwen_person.get("lower_color", person_data.get("lower_color"))
+                            person_data["lower_color_confidence"] = float(qwen_person.get("lower_color_confidence", person_data.get("lower_color_confidence", 0.0)))
+
                 merged_result["persons"].append(person_data)
                 logger.info(f"人物 {i+1} 合并结果: {json.dumps(person_data, ensure_ascii=False, indent=2)}")
 
@@ -957,10 +1010,40 @@ class ImageAnalyzer(metaclass=Singleton):
                     
                     if len(face_results) > 0 and len(face_results[0].boxes) > 0:
                         boxes = face_results[0].boxes
-                        # 为保证多人物场景下顺序稳定，按人脸左上角 x 坐标从小到大排序
                         boxes_list = list(boxes)
-                        boxes_list.sort(key=lambda b: float(b.xyxy[0][0]))
-                        boxes = boxes_list
+
+                        # 额外做一层 IoU 去重：YOLO 在极端情况下仍可能产生多个高度重叠的人脸框
+                        def _iou_xyxy(a, b) -> float:
+                            ax1, ay1, ax2, ay2 = [float(x) for x in a]
+                            bx1, by1, bx2, by2 = [float(x) for x in b]
+                            inter_x1 = max(ax1, bx1)
+                            inter_y1 = max(ay1, by1)
+                            inter_x2 = min(ax2, bx2)
+                            inter_y2 = min(ay2, by2)
+                            inter_w = max(0.0, inter_x2 - inter_x1)
+                            inter_h = max(0.0, inter_y2 - inter_y1)
+                            inter = inter_w * inter_h
+                            area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
+                            area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
+                            denom = area_a + area_b - inter
+                            return inter / denom if denom > 0 else 0.0
+
+                        def _get_conf(b) -> float:
+                            try:
+                                return float(b.conf[0]) if hasattr(b, "conf") else 0.0
+                            except Exception:
+                                return 0.0
+
+                        # 先按置信度降序选框，再按 x1 排序保证展示稳定
+                        boxes_list.sort(key=_get_conf, reverse=True)
+                        selected = []
+                        for b in boxes_list:
+                            bb = b.xyxy[0].tolist()
+                            if any(_iou_xyxy(bb, s.xyxy[0].tolist()) > 0.7 for s in selected):
+                                continue
+                            selected.append(b)
+                        selected.sort(key=lambda b: float(b.xyxy[0][0]))
+                        boxes = selected
                         logger.info(
                             f"人脸检测完成，共检测到 {len(boxes)} 个候选框（conf阈值={self.face_conf_threshold}）"
                         )
@@ -992,11 +1075,23 @@ class ImageAnalyzer(metaclass=Singleton):
                                 # 转换为PIL图像
                                 face_pil = Image.fromarray(cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB))
                                 
-                                # 性别预测
-                                gender, gender_conf = self.models['gender'].predict(face_img)
-                                
-                                # 年龄预测
-                                age, age_conf = self.models['age'].predict(face_pil)
+                                # 性别预测（缺模型时降级，不影响输出 persons）
+                                gender, gender_conf = "unknown", 0.0
+                                if self.models.get("gender") is not None:
+                                    try:
+                                        gender, gender_conf = self.models["gender"].predict(face_img)
+                                    except Exception as e:
+                                        logger.warning(f"性别预测失败（将降级为unknown）: {str(e)}")
+
+                                # 年龄预测（缺模型时降级，不影响输出 persons）
+                                age, age_conf = 0.0, 0.0
+                                if self.models.get("age") is not None:
+                                    try:
+                                        age, age_conf = self.models["age"].predict(face_pil)
+                                        if age is None:
+                                            age, age_conf = 0.0, 0.0
+                                    except Exception as e:
+                                        logger.warning(f"年龄预测失败（将降级为0）: {str(e)}")
                                 
                                 # 衣服区域检测（参考 test_hunhe 中 ClothingDetector）
                                 clothing_regions = self._detect_clothing_regions(

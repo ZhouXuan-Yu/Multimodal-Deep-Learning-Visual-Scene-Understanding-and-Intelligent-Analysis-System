@@ -61,9 +61,9 @@ export const useMainStore = defineStore('main', {
             try {
                 let response;
                 if (type === 'route') {
-                    // 路径规划请求（流式）
+                    // 路径规划请求（非流式）
                     try {
-                        console.log('[Store] 准备调用流式路线规划API');
+                        console.log('[Store] 准备调用路线规划API');
 
                         // 先将用户消息加入历史
                         this.chatHistory.push({
@@ -72,85 +72,61 @@ export const useMainStore = defineStore('main', {
                             timestamp: new Date().toISOString(),
                         });
 
-                        // 添加助手占位消息（将被流式更新）
+                        // 添加助手占位消息（显示加载状态）
                         const assistantIndex = this.chatHistory.push({
                             role: 'assistant',
-                            content: '',           // 最终文本
-                            chunks: [],            // 流式片段数组（用于高亮追加）
-                            thinking_steps: [],    // 结构化思考步骤
-                            streaming: true,       // 正在流式接收
+                            content: '正在规划路线...',
                             route_data: null,
                             timestamp: new Date().toISOString(),
                         }) - 1;
 
-                        // 打开 EventSource 流
-                        const es = routePlanningApi.planRouteStream(
-                            { text: content, model: 'qwen3-vl:8b' },
-                            (payload) => {
-                                // onMessage
-                                if (!payload || !payload.event) return;
-                                if (payload.event === 'chunk') {
-                                    // 路线规划场景下，大模型会输出结构化 JSON 分片。
-                                    // 这些分片不适合作为对话内容展示，这里直接忽略，只保留最终总结句。
-                                    return;
-                                } else if (payload.event === 'thinking_start') {
-                                    // 可以记录一个思考开始的步骤
-                                    this.chatHistory[assistantIndex].thinking_steps.push({ stage: 'start', text: payload.content || '正在分析' });
-                                } else if (payload.event === 'done') {
-                                    // payload.route_data contains final data
-                                    const rd = payload.route_data || payload.routeData || payload.route_data;
-                                    this.chatHistory[assistantIndex].route_data = rd;
-                                    // 标记流式结束
-                                    this.chatHistory[assistantIndex].streaming = false;
-                                    // 如果后端返回有 response_text，优先使用它作为最终显示（只展示这一句关键信息）
-                                    const finalText = (rd && rd.response_text) ? rd.response_text : '路线规划完成';
-                                    this.chatHistory[assistantIndex].content = finalText;
-                                    // 保存历史
-                                    this.saveChatHistoryToLocalStorage();
-                                }
-                            },
-                            () => {
-                                // onDone
-                                console.log('[Store] 流式路线规划完成');
-                                es.close && es.close();
-                                this.loading = false;
-                            },
-                            (err) => {
-                                // onError
-                                console.error('[Store] 流式路线规划错误:', err);
-                                this.chatHistory.push({
-                                    role: 'assistant',
-                                    content: `抱歉，路线规划失败: ${err && err.message ? err.message : '网络或服务错误'}`,
-                                    timestamp: new Date().toISOString(),
-                                });
-                                es.close && es.close();
-                                this.loading = false;
-                            }
-                        );
-
-                        // 返回一个 Promise，当流结束或发生错误时 resolve/reject
-                        return new Promise((resolve, reject) => {
-                            // 简单超时保护（例如 2 分钟）
-                            const timeout = setTimeout(() => {
-                                console.warn('[Store] 流式请求超时，自动关闭');
-                                es.close && es.close();
-                                this.loading = false;
-                                resolve({ success: false, error: 'timeout' });
-                            }, 120000);
-
-                            // we cannot easily detect done event here, but onDone will set loading false
-                            // resolve immediately to allow UI continue; frontend history will be updated by callbacks
-                            resolve({ success: true });
+                        // 调用非流式路线规划API
+                        this.loading = true;
+                        console.log('[Store] 调用 routePlanningApi.getRoutePlan，参数:', { text: content, model: 'qwen2.5:3b' });
+                        console.log('[Store] routePlanningApi 对象:', routePlanningApi);
+                        console.log('[Store] routePlanningApi.getRoutePlan 类型:', typeof routePlanningApi.getRoutePlan);
+                        
+                        if (typeof routePlanningApi.getRoutePlan !== 'function') {
+                            throw new Error('routePlanningApi.getRoutePlan 不是一个函数。可用的方法: ' + Object.keys(routePlanningApi).join(', '));
+                        }
+                        
+                        response = await routePlanningApi.getRoutePlan({
+                            text: content,
+                            model: 'qwen2.5:3b'
                         });
+
+                        // 处理响应
+                        if (response && response.success) {
+                            const rd = response.route_data || response.routeData;
+                            this.chatHistory[assistantIndex].route_data = rd;
+                            // 如果后端返回有 response_text，优先使用它作为最终显示
+                            const finalText = (rd && rd.response_text) ? rd.response_text : '路线规划完成';
+                            this.chatHistory[assistantIndex].content = finalText;
+                        } else {
+                            const errorMsg = response?.error || '路线规划失败';
+                            this.chatHistory[assistantIndex].content = `抱歉，${errorMsg}`;
+                        }
+
+                        // 保存历史
+                        this.saveChatHistoryToLocalStorage();
+                        this.loading = false;
+
+                        return { success: true, response };
 
                     } catch (error) {
                         console.error('[Store] 路线规划请求失败:', error);
-                        this.chatHistory.push({
-                            role: 'assistant',
-                            content: `抱歉，路线规划失败: ${error.message || '未知错误'}`,
-                            timestamp: new Date().toISOString(),
-                        });
+                        // 如果 assistantIndex 已定义，更新消息；否则添加新的错误消息
+                        if (typeof assistantIndex !== 'undefined' && this.chatHistory[assistantIndex]) {
+                            this.chatHistory[assistantIndex].content = `抱歉，路线规划失败: ${error.message || '未知错误'}`;
+                        } else {
+                            this.chatHistory.push({
+                                role: 'assistant',
+                                content: `抱歉，路线规划失败: ${error.message || '未知错误'}`,
+                                timestamp: new Date().toISOString(),
+                            });
+                        }
                         this.saveChatHistoryToLocalStorage();
+                        this.loading = false;
                         throw error;
                     }
                 } else {

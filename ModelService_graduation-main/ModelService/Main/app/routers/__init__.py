@@ -22,8 +22,10 @@ def load_module(module_name):
         module = importlib.import_module(f".{module_name}", package="app.routers")
         logger.info(f"✅ 成功加载模块: {module_name}")
         return module
-    except ImportError as e:
-        logger.error(f"❌ 无法导入模块 {module_name}: {str(e)}")
+    except Exception as e:
+        # 不要因为某个模块（例如模型权重/依赖）加载失败而导致整个服务无法启动
+        # 记录完整堆栈，方便排查
+        logger.exception(f"❌ 无法导入模块 {module_name}: {str(e)}")
         return None
 
 # 不要在这里导入任何模块，让main.py去导入它们

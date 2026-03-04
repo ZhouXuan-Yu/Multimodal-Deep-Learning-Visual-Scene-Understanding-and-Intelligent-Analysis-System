@@ -65,16 +65,21 @@ except ImportError as e:
         logger.error(f"❌ 第二次尝试导入PyTorch仍然失败: {str(e)}")
         raise
 
-# 尝试导入其他依赖
+# 尝试导入其他依赖（mediapipe 作为可选依赖；缺失时走几何/分割回退）
 try:
     from PIL import Image
     import cv2
     from ultralytics import YOLO
     from ultralytics.models.yolo.model import YOLO as YOLOModel
     from ultralytics.nn.tasks import DetectionModel
-    import mediapipe as mp
     from app.utils.color_mapping import translate_color
     from app.utils.image_analyzer import image_analyzer
+
+    try:
+        import mediapipe as mp  # type: ignore
+    except ImportError:
+        mp = None
+        logger.warning("⚠️ 未安装 mediapipe，将禁用姿态/分割相关的增强处理，使用回退逻辑继续运行")
     
     HAS_DEPENDENCIES = True
     logger.info("✅ 成功导入其他依赖模块")
@@ -153,6 +158,19 @@ class ModelBase:
             
         return new_state_dict
 
+
+def _torch_load_compat(path: str, map_location=None):
+    """
+    兼容 PyTorch 2.6+ 默认 weights_only=True 的行为。
+    - 对于本项目内训练得到的 checkpoint，我们需要允许反序列化完整对象结构
+    - 在旧版本 PyTorch（没有 weights_only 参数）时，自动回退到原始 torch.load
+    """
+    try:
+        return torch.load(path, map_location=map_location, weights_only=False)
+    except TypeError:
+        # 旧版本 torch.load 不支持 weights_only 参数
+        return torch.load(path, map_location=map_location)
+
 class ColorModel(ModelBase, metaclass=Singleton):
     def __init__(self, model_path: str, device: str):
         super().__init__(model_path, device)
@@ -173,7 +191,7 @@ class ColorModel(ModelBase, metaclass=Singleton):
             def forward(self, x):
                 return self.model(x)
         
-        checkpoint = torch.load(self.model_path, map_location=self.device)
+        checkpoint = _torch_load_compat(self.model_path, map_location=self.device)
         num_classes = len(checkpoint['classes'])
         self.model = ColorClassifier(num_classes)
         state_dict = self._load_state_dict(checkpoint)
@@ -368,7 +386,7 @@ class AgeModel(ModelBase, metaclass=Singleton):
             def forward(self, x):
                 return self.backbone(x)
         
-        checkpoint = torch.load(self.model_path, map_location=self.device)
+        checkpoint = _torch_load_compat(self.model_path, map_location=self.device)
         self.model = AgeEstimationModel(num_classes=len(self.age_classes))
         
         # 加载模型权重
@@ -471,14 +489,33 @@ class GenderModel(ModelBase, metaclass=Singleton):
 
 class ClothingDetector:
     def __init__(self):
-        self.mp_pose = mp.solutions.pose
-        self.pose = self.mp_pose.Pose(
-            static_image_mode=True,
-            model_complexity=2,
-            enable_segmentation=True,
-            min_detection_confidence=0.5
-        )
-        
+        """
+        服装/身体区域检测器
+        - 优先使用 DeepLabV3 分割模型
+        - 在缺少分割模型时，退回到基于几何的人体区域估计
+        - mediapipe 为可选依赖：如果未安装，则跳过姿态相关初始化，不影响整体服务启动
+        """
+        # 处理 mediapipe 为可选依赖的情况
+        self.mp_pose = None
+        self.pose = None
+        if mp is not None:
+            try:
+                self.mp_pose = mp.solutions.pose
+                self.pose = self.mp_pose.Pose(
+                    static_image_mode=True,
+                    model_complexity=2,
+                    enable_segmentation=True,
+                    min_detection_confidence=0.5
+                )
+                logger.info("✅ 已启用 mediapipe 姿态估计，用于增强服装区域检测")
+            except Exception as e:
+                # 如果 mediapipe 初始化失败，记录日志并继续使用几何/分割回退逻辑
+                logger.warning(f"⚠️ 初始化 mediapipe 失败，将仅使用几何/分割方法进行衣物区域估计: {e}")
+                self.mp_pose = None
+                self.pose = None
+        else:
+            logger.info("ℹ️ 未检测到 mediapipe，服装检测将使用几何/分割回退逻辑（不影响服务启动）")
+
         # 加载语义分割模型（使用项目内 z_model_use 目录下的权重，而不是硬编码个人磁盘路径）
         self.segmentation_model = None
         try:

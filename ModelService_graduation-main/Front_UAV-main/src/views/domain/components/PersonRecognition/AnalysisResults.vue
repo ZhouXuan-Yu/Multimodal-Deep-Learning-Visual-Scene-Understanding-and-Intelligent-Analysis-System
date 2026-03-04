@@ -175,12 +175,16 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onUnmounted, nextTick, watch } from 'vue';
 import personRecognitionService from '../../services/personRecognitionService';
 
 const props = defineProps({
   analysisResult: {
     type: Object,
+    default: null
+  },
+  highlightedPersonIndex: {
+    type: Number,
     default: null
   }
 });
@@ -225,6 +229,17 @@ const filteredPersons = computed(() => {
 const onImageLoad = () => {
   resetZoom();
 };
+
+// 外部高亮联动（来自父组件/助手）
+watch(
+  () => props.highlightedPersonIndex,
+  (idx) => {
+    if (idx === null || idx === undefined) return;
+    if (!props.analysisResult?.persons?.length) return;
+    if (idx < 0 || idx >= props.analysisResult.persons.length) return;
+    activePersonId.value = idx;
+  }
+);
 
 // 缩放控制
 const zoomIn = () => {
@@ -312,29 +327,14 @@ const focusOnPerson = (index) => {
     
     if (!imgWidth || !imgHeight) return;
 
-    // 计算当前 bbox 在像素坐标下的中心点（支持 [x1,y1,x2,y2] 和 [x,y,w,h]）
-    let x1, y1, x2, y2;
-    if (bbox[2] < bbox[0] || bbox[3] < bbox[1]) {
-      // [x, y, w, h]
-      x1 = bbox[0];
-      y1 = bbox[1];
-      x2 = bbox[0] + bbox[2];
-      y2 = bbox[1] + bbox[3];
-    } else {
-      // [x1, y1, x2, y2]
-      x1 = bbox[0];
-      y1 = bbox[1];
-      x2 = bbox[2];
-      y2 = bbox[3];
-    }
-
-    // 归一化坐标的情况（0~1），转换为像素
-    if (x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1) {
-      x1 *= imgWidth;
-      x2 *= imgWidth;
-      y1 *= imgHeight;
-      y2 *= imgHeight;
-    }
+  // bbox 统一约定为 xyxy（像素或归一化 0~1）
+  let [x1, y1, x2, y2] = bbox;
+  if (x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1) {
+    x1 *= imgWidth;
+    x2 *= imgWidth;
+    y1 *= imgHeight;
+    y2 *= imgHeight;
+  }
 
     const centerX = (x1 + x2) / 2;
     const centerY = (y1 + y2) / 2;
@@ -365,68 +365,39 @@ const calculateBoxStyle = (bbox) => {
   }
   
   try {
-    console.log('处理bbox数据:', bbox);
-    
-    // 判断bbox格式: [x, y, width, height] 或 [x1, y1, x2, y2]
-    let x1, y1, width, height;
-    
-    if (bbox[2] < bbox[0] || bbox[3] < bbox[1]) {
-      // 是[x, y, width, height]格式
-      x1 = bbox[0];
-      y1 = bbox[1]; 
-      width = bbox[2];
-      height = bbox[3];
-      console.log('检测到[x, y, width, height]格式:', x1, y1, width, height);
-    } else {
-      // 是[x1, y1, x2, y2]格式
-      x1 = bbox[0];
-      y1 = bbox[1];
-      width = bbox[2] - bbox[0];
-      height = bbox[3] - bbox[1];
-      console.log('检测到[x1, y1, x2, y2]格式:', x1, y1, width, height);
+    const imgWidth = imageRef.value?.naturalWidth;
+    const imgHeight = imageRef.value?.naturalHeight;
+
+    // bbox 统一约定为 xyxy（像素或归一化 0~1）
+    let [x1, y1, x2, y2] = bbox;
+    if (imgWidth && imgHeight && x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1) {
+      x1 *= imgWidth;
+      x2 *= imgWidth;
+      y1 *= imgHeight;
+      y2 *= imgHeight;
     }
-    
-    // 确保使用百分比值
-    if (x1 <= 1 && y1 <= 1 && width <= 1 && height <= 1) {
-      // 归一化坐标
-      console.log('应用归一化百分比坐标');
+
+    const width = x2 - x1;
+    const height = y2 - y1;
+    if (width <= 0 || height <= 0) return {};
+
+    // 优先使用百分比（适配 object-fit: contain）
+    if (imgWidth && imgHeight) {
       return {
-        left: `${x1 * 100}%`,
-        top: `${y1 * 100}%`,
-        width: `${width * 100}%`,
-        height: `${height * 100}%`
-      };
-    } else {
-      // 像素坐标，需要转换为相对坐标
-      if (imageRef.value) {
-        const imgWidth = imageRef.value.naturalWidth;
-        const imgHeight = imageRef.value.naturalHeight;
-        
-        if (imgWidth && imgHeight) {
-          console.log('应用像素坐标转换为百分比:', imgWidth, imgHeight);
-          const left = (x1 / imgWidth) * 100;
-          const top = (y1 / imgHeight) * 100;
-          const boxWidth = (width / imgWidth) * 100;
-          const boxHeight = (height / imgHeight) * 100;
-          
-          return {
-            left: `${left}%`,
-            top: `${top}%`,
-            width: `${boxWidth}%`,
-            height: `${boxHeight}%`
-          };
-        }
-      }
-      
-      // 如果无法获取图像大小，使用固定像素值
-      console.log('使用直接像素坐标');
-      return {
-        left: `${x1}px`,
-        top: `${y1}px`,
-        width: `${width}px`,
-        height: `${height}px`
+        left: `${(x1 / imgWidth) * 100}%`,
+        top: `${(y1 / imgHeight) * 100}%`,
+        width: `${(width / imgWidth) * 100}%`,
+        height: `${(height / imgHeight) * 100}%`
       };
     }
+
+    // 兜底：无法获取 naturalSize 时使用像素
+    return {
+      left: `${x1}px`,
+      top: `${y1}px`,
+      width: `${width}px`,
+      height: `${height}px`
+    };
   } catch (error) {
     console.error('计算标记框样式出错:', error);
     return {
