@@ -170,7 +170,7 @@ NEO4J_PASSWORD = "123"
 
 class KnowledgeChatRequest(BaseModel):
     message: str = Field(..., description="用户发送的消息")
-    model: str = Field(default="qwen2.5:3b", description="使用的模型名称")
+    model: str = Field(default="qwen3.5:4b", description="使用的模型名称")
     temperature: float = Field(default=0.7, ge=0, le=1, description="温度参数")
     web_search: bool = Field(default=False, description="是否使用联网搜索")
     knowledge_graph_search: bool = Field(default=False, description="是否使用知识图谱搜索")
@@ -609,7 +609,7 @@ async def knowledge_chat_stream(request: Request):
         # 解析请求
         data = await request.json()
         message = data.get("message", "")
-        model = data.get("model", "qwen2.5:3b")
+        model = data.get("model", "qwen3.5:4b")
         temperature = data.get("temperature", 0.7)
         web_search = data.get("web_search", False)
         knowledge_graph_search = data.get("knowledge_graph_search", False)

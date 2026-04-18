@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能路线规划助手</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e4e4e7;
+        }
+        .main-container { display: flex; height: 100vh; padding: 20px; gap: 20px; }
+        .chat-section { flex: 1; display: flex; flex-direction: column; background: rgba(255,255,255,0.05); border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
+        .chat-header { padding: 20px; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; gap: 15px; }
+        .chat-header h1 { font-size: 1.5rem; color: white; }
+        .chat-header .subtitle { font-size: 0.85rem; color: rgba(255,255,255,0.8); }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+        .message { max-width: 85%; animation: slideIn 0.3s ease-out; }
+        .message.user { align-self: flex-end; }
+        .message.assistant { align-self: flex-start; }
+        .message-content { padding: 14px 18px; border-radius: 18px; line-height: 1.6; }
+        .message.user .message-content { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-bottom-right-radius: 4px; }
+        .message.assistant .message-content { background: rgba(255,255,255,0.1); color: #e4e4e7; border-bottom-left-radius: 4px; }
+        .message-thinking { background: rgba(102,126,234,0.1); border-left: 3px solid #667eea; }
+        .thinking-dots span { display: inline-block; width: 8px; height: 8px; background: #667eea; border-radius: 50%; margin: 0 3px; animation: bounce 1.4s infinite ease-in-out; }
+        .thinking-dots span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%,80%,100% { transform: scale(0); } 40% { transform: scale(1); } }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .chat-input-area { padding: 20px; background: rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.1); }
+        .chat-input-wrapper { display: flex; gap: 12px; }
+        .chat-input-wrapper textarea { flex: 1; padding: 14px 18px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 14px; color: white; resize: none; min-height: 50px; }
+        .chat-input-wrapper textarea::placeholder { color: rgba(255,255,255,0.5); }
+        .chat-input-wrapper textarea:focus { outline: none; border-color: #667eea; }
+        .send-button { width: 50px; height: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 14px; color: white; cursor: pointer; transition: all 0.3s; }
+        .send-button:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(102,126,234,0.4); }
+        .send-button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        
+        /* 右侧导航区域 */
+        .nav-section { width: 450px; display: flex; flex-direction: column; background: rgba(255,255,255,0.05); border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
+        .nav-header { padding: 20px; background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%); display: flex; align-items: center; gap: 12px; }
+        .nav-header h2 { font-size: 1.2rem; color: white; }
+        .nav-content { flex: 1; overflow-y: auto; padding: 20px; }
+        .nav-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: rgba(255,255,255,0.5); text-align: center; }
+        .nav-empty .icon { font-size: 4rem; margin-bottom: 20px; opacity: 0.5; }
+        
+        /* 路线卡片 */
+        .route-card { background: rgba(255,255,255,0.08); border-radius: 14px; padding: 18px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 16px; }
+        .route-card.recommended { border-color: #667eea; background: rgba(102,126,234,0.1); }
+        .route-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); border-radius: 20px; font-size: 0.8rem; color: white; margin-bottom: 12px; }
+        .route-title { font-size: 1.1rem; font-weight: 600; color: white; margin-bottom: 8px; }
+        .route-reason { font-size: 0.9rem; color: rgba(255,255,255,0.7); margin-bottom: 16px; }
+        .route-info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .route-info-item { background: rgba(0,0,0,0.2); padding: 12px; border-radius: 10px; text-align: center; }
+        .route-info-label { font-size: 0.75rem; color: rgba(255,255,255,0.6); margin-bottom: 4px; }
+        .route-info-value { font-size: 1rem; font-weight: 600; color: white; }
+        .waypoints-list { margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); }
+        .waypoint-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 0.9rem; }
+        .waypoint-icon { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+        .waypoint-icon.start { background: #10b981; }
+        .waypoint-icon.end { background: #ef4444; }
+        .waypoint-icon.via { background: #f59e0b; }
+        .preference-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+        .preference-tag { padding: 4px 10px; background: rgba(255,255,255,0.1); border-radius: 12px; font-size: 0.75rem; color: rgba(255,255,255,0.7); }
+        .preference-tag.active { background: rgba(239,68,68,0.3); color: #fca5a5; }
+        .map-container { height: 200px; background: rgba(0,0,0,0.3); border-radius: 12px; margin-top: 16px; }
+        
+        /* 滚动条 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        
+        @media (max-width: 1200px) {
+            .main-container { flex-direction: column; height: auto; }
+            .nav-section { width: 100%; max-height: 600px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- 左侧聊天区 -->
+        <div class="chat-section">
+            <div class="chat-header">
+                <div class="text-2xl">🗺️</div>
+                <div>
+                    <h1>智能路线规划</h1>
+                    <div class="subtitle">AI 驱动的智能路径规划助手</div>
+                </div>
+                <select id="modelSelect" style="margin-left: auto; padding: 8px 16px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; color: white;">
+                    <option value="qwen3-vl:8b">Qwen3-VL 8B (本地)</option>
+                    <option value="llama3.2:latest">Llama 3.2</option>
+                    <option value="gemma2:2b">Gemma 2B</option>
+                </select>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="message assistant">
+                    <div class="message-content">
+                        <div class="text-xl mb-2">👋 您好！我是智能路线规划助手</div>
+                        <div>告诉我您的出行需求，例如：<br>• 从北京到上海<br>• 从郑州到开封，最快路线</div>
+                    </div>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <div class="chat-input-wrapper">
+                    <textarea id="messageInput" placeholder="输入出行需求..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,150)+'px'"></textarea>
+                    <button class="send-button" id="sendButton" onclick="sendMessage()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- 右侧导航区 -->
+        <div class="nav-section">
+            <div class="nav-header">
+                <div class="text-xl">🧭</div>
+                <h2>路线规划结果</h2>
+            </div>
+            <div class="nav-content" id="navContent">
+                <div class="nav-empty">
+                    <div class="icon">🗺️</div>
+                    <h3>等待路线规划</h3>
+                    <p>输入出行需求，我将为您规划最佳路线</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=5c98219ee72ff8b122e46b8167333eb9"></script>
+    <script>
+        let isGenerating = false, currentRouteData = null, mapInstance = null;
+        
+        function addMessage(role, content, isThinking = false) {
+            const container = document.getElementById('chatMessages');
+            const div = document.createElement('div');
+            div.className = `message ${role}` + (isThinking ? ' message-thinking' : '');
+            if (isThinking) {
+                div.innerHTML = `<div style="display:flex;align-items:center;gap:8px;color:#667eea;font-weight:600;font-size:0.85rem;margin-bottom:8px;"><span>AI思考中</span><div class="thinking-dots"><span></span><span></span><span></span></div></div><div style="font-size:0.95rem;color:#e4e4e7;">${content}</div>`;
+            } else {
+                div.innerHTML = `<div class="message-content">${marked.parse(content)}</div>`;
+            }
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (!text || isGenerating) return;
+            
+            isGenerating = true;
+            input.disabled = true;
+            document.getElementById('sendButton').disabled = true;
+            
+            addMessage('user', text);
+            input.value = '';
+            
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.className = 'message assistant';
+            thinkingDiv.id = 'thinkingMsg';
+            thinkingDiv.innerHTML = `<div class="message-content message-thinking"><div style="display:flex;align-items:center;gap:8px;color:#667eea;font-weight:600;margin-bottom:8px;"><span>🤔 正在分析...</span></div><div id="thinkingText" style="font-size:0.9rem;color:#e4e4e7;">连接模型中...</div></div>`;
+            document.getElementById('chatMessages').appendChild(thinkingDiv);
+            
+            const model = document.getElementById('modelSelect').value;
+            
+            try {
+                const response = await fetch('/api/route/plan/stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, model })
+                });
+                
+                if (!response.ok) throw new Error('请求失败');
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let fullResponse = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value);
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop();
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                if (data.event === 'thinking_start') {
+                                    document.getElementById('thinkingText').textContent = data.content || '正在思考...';
+                                } else if (data.event === 'chunk' && data.content) {
+                                    fullResponse += data.content;
+                                    document.getElementById('thinkingText').textContent = fullResponse.slice(-100) || '正在生成...';
+                                } else if (data.event === 'done') {
+                                    document.getElementById('thinkingMsg').remove();
+                                    addMessage('assistant', fullResponse || '已完成路线规划');
+                                    if (data.route_data) {
+                                        currentRouteData = data.route_data;
+                                        renderRouteResults(data.route_data);
+                                    }
+                                } else if (data.event === 'error') {
+                                    document.getElementById('thinkingMsg').remove();
+                                    addMessage('assistant', `⚠️ ${data.content}`);
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                }
+            } catch (error) {
+                const thinkingMsg = document.getElementById('thinkingMsg');
+                if (thinkingMsg) thinkingMsg.remove();
+                addMessage('assistant', `❌ 错误: ${error.message}`);
+            } finally {
+                isGenerating = false;
+                input.disabled = false;
+                document.getElementById('sendButton').disabled = false;
+                input.focus();
+            }
+        }
+        
+        function renderRouteResults(data) {
+            const container = document.getElementById('navContent');
+            if (!data || !data.route_info) {
+                container.innerHTML = `<div class="nav-empty"><div class="icon">❌</div><h3>规划失败</h3><p>无法生成路线信息</p></div>`;
+                return;
+            }
+            
+            const info = data.route_info;
+            let html = `<div class="route-card recommended">
+                <div class="route-badge">⭐ 推荐路线</div>
+                <div class="route-title">${info.start_point || '起点'} → ${info.end_point || '终点'}</div>
+                <div class="route-reason">${data.recommended_routes?.[0]?.reason || '根据您的需求智能规划'}</div>
+                <div class="route-info-grid">
+                    <div class="route-info-item">
+                        <div class="route-info-label">路线类型</div>
+                        <div class="route-info-value">${info.route_type === 'LEAST_TIME' ? '最快路线' : info.route_type === 'LEAST_FEE' ? '最经济' : '最短距离'}</div>
+                    </div>
+                    <div class="route-info-item">
+                        <div class="route-info-label">途经点</div>
+                        <div class="route-info-value">${info.waypoints?.length || 0} 个</div>
+                    </div>
+                </div>`;
+            
+            if (info.waypoints && info.waypoints.length > 0) {
+                html += `<div class="waypoints-list">
+                    <div class="waypoint-item"><div class="waypoint-icon start">起</div><span>${info.start_point}</span></div>`;
+                info.waypoints.forEach((wp, i) => {
+                    html += `<div class="waypoint-item"><div class="waypoint-icon via">${i+1}</div><span>${wp}</span></div>`;
+                });
+                html += `<div class="waypoint-item"><div class="waypoint-icon end">终</div><span>${info.end_point}</span></div></div>`;
+            }
+            
+            if (data.preferences) {
+                html += `<div class="preference-tags">`;
+                html += `<span class="preference-tag ${data.preferences.avoid_highways ? 'active' : ''}">避开高速</span>`;
+                html += `<span class="preference-tag ${data.preferences.avoid_tolls ? 'active' : ''}">避开收费</span>`;
+                html += `<span class="preference-tag ${data.preferences.avoid_congestion ? 'active' : ''}">避开拥堵</span>`;
+                html += `</div>`;
+            }
+            
+            html += `<div class="map-container"><div id="routeMap"></div></div></div>`;
+            container.innerHTML = html;
+            
+            // 初始化地图
+            setTimeout(() => {
+                if (window.AMap) {
+                    try {
+                        const map = new AMap.Map('routeMap', { zoom: 12 });
+                        if (info.start_point) {
+                            const startMarker = new AMap.Marker({ position: [116.427428, 39.92923], title: info.start_point });
+                            startMarker.setMap(map);
+                        }
+                        if (info.end_point) {
+                            const endMarker = new AMap.Marker({ position: [121.473701, 31.230416], title: info.end_point });
+                            endMarker.setMap(map);
+                        }
+                    } catch (e) { console.log('地图初始化跳过:', e.message); }
+                }
+            }, 500);
+        }
+    </script>
+</body>
+</html>
+
+
+
+
