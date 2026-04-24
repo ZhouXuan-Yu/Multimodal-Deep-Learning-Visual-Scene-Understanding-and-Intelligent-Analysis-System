@@ -27,6 +27,7 @@ import ImageRecognition from './ImageRecognition.vue'
 import ImageAnalysisAssistant from '../components/ImageAnalysisAssistant.vue'
 import { useAnalysisStore } from '../stores/analysis'
 import { ElMessage } from 'element-plus'
+import { useDashboardStore } from '@/stores/dashboardStore'
 
 const analysisStore = useAnalysisStore()
 const assistantRef = ref(null)
@@ -71,6 +72,23 @@ const handleAnalysisComplete = (result) => {
   if (assistantRef.value) {
     assistantRef.value.notifyAnalysisComplete(result)
   }
+  // 写入数据分析大屏 store
+  try {
+    const dashboardStore = useDashboardStore()
+    if (!dashboardStore.initialized) dashboardStore.init()
+    const persons = result?.faces_info || result?.persons || []
+    persons.forEach((person: any) => {
+      dashboardStore.addPersonRecord({
+        gender: person.gender === '男' ? '男' : person.gender === '女' ? '女' : '未知',
+        age: String(person.age || '18-25'),
+        upperColor: person.upper_color || '未知',
+        lowerColor: person.lower_color || '未知',
+        confidence: person.confidence || person.gender_confidence || 0.8,
+        processingTime: result.processing_time || 1.2,
+        imageUrl: result.result_image_url || '',
+      })
+    })
+  } catch (e) { /* dashboard store is optional */ }
 }
 
 // 处理助手的查询

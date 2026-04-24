@@ -540,15 +540,22 @@ const scrollToBottom = () => {
 // 获取颜色样式
 const getColorStyle = (colorName) => {
   const colorMap = {
-    'red': { bg: '#ef4444', text: 'white' },
-    'blue': { bg: '#3b82f6', text: 'white' },
+    'red': { bg: '#ef4444', text: 'white' }, 'darkred': { bg: '#b91c1c', text: 'white' },
+    'blue': { bg: '#3b82f6', text: 'white' }, 'darkblue': { bg: '#1d4ed8', text: 'white' }, 'lightblue': { bg: '#93c5fd', text: 'black' },
     'green': { bg: '#10b981', text: 'white' },
     'yellow': { bg: '#f59e0b', text: 'black' },
+    'orange': { bg: '#f97316', text: 'white' },
+    'purple': { bg: '#a855f7', text: 'white' },
+    'pink': { bg: '#ec4899', text: 'white' },
+    'brown': { bg: '#92400e', text: 'white' },
     'black': { bg: '#1f2937', text: 'white' },
     'white': { bg: '#f3f4f6', text: 'black' },
-    'gray': { bg: '#6b7280', text: 'white' }
+    'gray': { bg: '#6b7280', text: 'white' }, 'grey': { bg: '#6b7280', text: 'white' },
+    'lightgray': { bg: '#d1d5db', text: 'black' }, 'darkgray': { bg: '#374151', text: 'white' },
+    'cyan': { bg: '#06b6d4', text: 'white' },
+    'multicolor': { bg: '#8b5cf6', text: 'white' },
   };
-  
+
   const color = colorMap[colorName] || { bg: '#6b7280', text: 'white' };
   return `background-color: ${color.bg}; color: ${color.text};`;
 };
@@ -567,15 +574,21 @@ const translateGender = (gender) => {
 // 翻译颜色
 const translateColor = (color) => {
   const colorMap = {
-    'red': '红色',
-    'blue': '蓝色',
+    'red': '红色', 'darkred': '深红色',
+    'blue': '蓝色', 'darkblue': '深蓝色', 'lightblue': '浅蓝色',
     'green': '绿色',
     'yellow': '黄色',
+    'orange': '橙色',
+    'purple': '紫色',
+    'pink': '粉色',
+    'brown': '棕色',
     'black': '黑色',
     'white': '白色',
-    'gray': '灰色'
+    'gray': '灰色', 'grey': '灰色', 'lightgray': '浅灰色', 'darkgray': '深灰色',
+    'cyan': '青色',
+    'multicolor': '彩色',
   };
-  
+
   return colorMap[color] || color;
 };
 

@@ -620,9 +620,18 @@ class ImageAnalyzer(metaclass=Singleton):
             logger.error(f"人脸图像预处理失败: {str(e)}")
             return None
     def analyze_with_qwen(self, image_path: str) -> Dict:
-        """使用本地 Ollama 中的 Qwen3-VL 模型分析图片（增强分析模式）"""
+        """使用本地 Ollama 中的 Qwen3-VL 模型分析图片（两步法：文字描述 -> 结构化解析）"""
         try:
-            # 读取并编码图片
+            # Step 1: 获取图片尺寸
+            try:
+                with Image.open(image_path) as img:
+                    img_w, img_h = img.size
+                logger.info(f"图片尺寸: {img_w}x{img_h}")
+            except Exception as e:
+                logger.error(f"读取图片尺寸失败: {str(e)}")
+                return {"error": f"读取图片尺寸失败: {str(e)}"}
+
+            # Step 2: 读取并编码图片
             try:
                 with open(image_path, "rb") as image_file:
                     base64_image = base64.b64encode(image_file.read()).decode("utf-8")
@@ -631,37 +640,30 @@ class ImageAnalyzer(metaclass=Singleton):
                 logger.error(f"图片编码失败: {str(e)}")
                 return {"error": "图片编码失败"}
 
-            prompt = """请分析图像中的人物信息，并按照以下JSON格式返回结果：
-{
-    "detected": 人物数量,
-    "persons": [
-        {
-            "gender": "male/female",
-            "gender_confidence": 0.95,
-            "age": 25,
-            "age_confidence": 0.85,
-            "upper_color": "red/blue/green/...",
-            "upper_color_confidence": 0.8,
-            "lower_color": "red/blue/green/...",
-            "lower_color_confidence": 0.8,
-            "bbox": [x1, y1, x2, y2]
-        }
-    ],
-    "success": true
-}
-请严格只输出一个 JSON，不要输出任何额外说明文本。"""
+            # Step 3: 先请求文字描述（Qwen3-VL 直接输出 JSON 不可靠，改用描述法）
+            description_prompt = (
+                "请仔细观察这张图像，描述图像中检测到的每一个人物，逐个说明。"
+                "对于每个人物，提供以下信息："
+                "1. 性别（男/女）"
+                "2. 大致年龄或年龄段（如：20岁左右、中年、老年等）"
+                "3. 上衣颜色（具体颜色如：黑色、白色、蓝色、红色等）"
+                "4. 下装颜色（具体颜色如：黑色、蓝色、牛仔裤色等）"
+                "5. 人物在图像中的大致位置（用左/中/右、上/中/下描述）"
+                "如果图像中没有人，请直接说明'未检测到人物'。"
+                "请用简洁的自然语言描述，不要使用 JSON 格式。"
+            )
 
             url = f"{self.ollama_base_url}/api/chat"
             payload = {
                 "model": self.ollama_model_name,
                 "stream": False,
                 "messages": [
-                    {"role": "system", "content": "你是一个严谨的图像分析助手，只能输出有效 JSON。"},
-                    {"role": "user", "content": prompt, "images": [base64_image]},
+                    {"role": "system", "content": "你是一个严谨的图像分析助手，请仔细观察并准确描述图像内容。"},
+                    {"role": "user", "content": description_prompt, "images": [base64_image]},
                 ],
             }
 
-            logger.info(f"发送本地 Qwen3-VL 请求: url={url}, model={self.ollama_model_name}")
+            logger.info(f"发送本地 Qwen3-VL 描述请求: url={url}, model={self.ollama_model_name}")
             try:
                 resp = requests.post(url, json=payload, timeout=self.ollama_timeout_s)
             except Exception as e:
@@ -678,60 +680,229 @@ class ImageAnalyzer(metaclass=Singleton):
                 logger.error(f"解析 Ollama 响应失败: {str(e)}, body={resp.text[:500]}")
                 return {"error": "解析Ollama响应失败", "raw_text": resp.text}
 
-            result_text = ""
+            description = ""
             if isinstance(resp_json, dict) and "message" in resp_json:
                 msg = resp_json.get("message") or {}
-                result_text = msg.get("content", "") or ""
-            if not result_text:
-                result_text = json.dumps(resp_json, ensure_ascii=False)
+                description = msg.get("content", "") or ""
+            if not description:
+                description = json.dumps(resp_json, ensure_ascii=False)
 
-            logger.info(f"本地 Qwen3-VL 返回原始结果: {result_text[:800]}")
+            logger.info(f"Qwen3-VL 描述结果: {description[:1000]}")
 
-            # 提取 JSON 部分
-            json_start = result_text.find('{')
-            json_end = result_text.rfind('}') + 1
+            if "未检测到人物" in description or "没有人" in description.lower() or "no person" in description.lower():
+                return {"detected": 0, "persons": [], "success": True}
 
-            if json_start >= 0 and json_end > json_start:
-                try:
-                    json_text = result_text[json_start:json_end]
-                    json_text = json_text.replace('\n', ' ').replace('\r', ' ')
-                    json_text = ' '.join(json_text.split())
-                    parsed_result = json.loads(json_text)
-                    logger.info(f"成功解析 Qwen3-VL 返回结果: {json.dumps(parsed_result, ensure_ascii=False, indent=2)}")
+            # Step 4: 解析文字描述 -> 结构化数据
+            persons = self._parse_description_to_persons(description, img_w, img_h)
+            logger.info(f"从描述中解析出 {len(persons)} 个人员")
 
-                    standardized_result = {
-                        "detected": parsed_result.get("detected", 0),
-                        "persons": [],
-                        "success": True
-                    }
+            if not persons:
+                logger.warning(f"无法从描述中解析人员信息: {description[:500]}")
+                return {"detected": 0, "persons": [], "success": False, "raw_description": description}
 
-                    for person in parsed_result.get("persons", []):
-                        standardized_person = {
-                            "gender": person.get("gender", "unknown"),
-                            "gender_confidence": person.get("gender_confidence", 0.0),
-                            "age": person.get("age", 0),
-                            "age_confidence": person.get("age_confidence", 0.0),
-                            "upper_color": person.get("upper_color", "unknown"),
-                            "upper_color_confidence": person.get("upper_color_confidence", 0.0),
-                            "lower_color": person.get("lower_color", "unknown"),
-                            "lower_color_confidence": person.get("lower_color_confidence", 0.0),
-                            "bbox": person.get("bbox", [0, 0, 0, 0])
-                        }
-                        standardized_result["persons"].append(standardized_person)
-
-                    logger.info(f"标准化后的结果: {json.dumps(standardized_result, ensure_ascii=False, indent=2)}")
-                    return standardized_result
-
-                except json.JSONDecodeError as e:
-                    logger.error(f"JSON解析失败: {str(e)}")
-                    return {"error": "JSON解析失败", "raw_text": result_text}
-            else:
-                logger.error(f"无法从响应中提取JSON结果: {result_text}")
-                return {"error": "无法解析返回结果", "raw_text": result_text}
+            return {
+                "detected": len(persons),
+                "persons": persons,
+                "success": True,
+                "raw_description": description,
+            }
 
         except Exception as e:
             logger.error(f"本地 Qwen3-VL 分析失败: {str(e)}")
             return {"error": str(e)}
+
+    def _parse_description_to_persons(self, description: str, img_w: int, img_h: int) -> list:
+        """从 Qwen3-VL 的文字描述中解析出结构化人员数据，并估算边界框"""
+        import re
+
+        # 颜色词汇表
+        color_map = {
+            "黑色": "black", "黑色系": "black",
+            "白色": "white", "白色系": "white",
+            "红色": "red", "红色系": "red",
+            "蓝色": "blue", "蓝色系": "blue",
+            "绿色": "green", "绿色系": "green",
+            "黄色": "yellow", "黄色系": "yellow",
+            "灰色": "gray", "灰色系": "gray",
+            "紫色": "purple", "紫色系": "purple",
+            "橙色": "orange", "橙色系": "orange",
+            "粉色": "pink", "粉色系": "pink",
+            "棕色": "brown", "棕色系": "brown",
+            "深色": "darkgray", "浅色": "lightgray",
+            "彩色": "multicolor",
+        }
+
+        def find_color(text: str) -> str:
+            for cn, en in color_map.items():
+                if cn in text:
+                    return en
+            return "unknown"
+
+        # 提取指定标签后的颜色（优先精确匹配）
+        def extract_color_after(text: str, label: str) -> str:
+            # 找 "上衣为X" / "下装为X" / "裤子为X" 等
+            pats = [
+                rf"{label}为\s*([\u4e00-\u9fa5]{{1,8}}?色系?[\u4e00-\u9fa5]*)",
+                rf"{label}:\s*([\u4e00-\u9fa5]{{1,8}})",
+            ]
+            for pat in pats:
+                m = re.search(pat, text)
+                if m:
+                    color_str = m.group(1)
+                    found = find_color(color_str)
+                    if found != "unknown":
+                        return found
+            return "unknown"
+
+        def extract_gender(text: str) -> str:
+            if any(k in text for k in ["男性", "男生", "男", "男性人物"]):
+                return "male"
+            if any(k in text for k in ["女性", "女生", "女性人物", "女子"]):
+                return "female"
+            return "unknown"
+
+        def extract_age(text: str) -> int:
+            m = re.search(r"(\d+)\s*岁", text)
+            if m:
+                return int(m.group(1))
+            if re.search(r"少年|小孩|儿童", text):
+                return 15
+            if re.search(r"青年|年轻人", text):
+                return 25
+            if re.search(r"中年", text):
+                return 45
+            if re.search(r"老年|老人", text):
+                return 65
+            return 30
+
+        # 按人数分段（"第X位"、"左X"、"右X"）
+        person_segments = []
+        # 策略1：匹配 "第1位" / "第一位" 等标记
+        segments = re.split(r"(?=第\s*[一二三四五六七八九十\d]+\s*[人位])", description)
+        if len(segments) > 1:
+            for seg in segments:
+                seg = seg.strip()
+                if seg:
+                    person_segments.append(seg)
+        else:
+            # 策略2：按句号/分号分段（每段描述一个人）
+            raw_segments = re.split(r"[；;](?!\s*$)", description)
+            for seg in raw_segments:
+                seg = seg.strip()
+                if len(seg) > 10:  # 过滤过短片段
+                    person_segments.append(seg)
+
+        # 估算总人数
+        count = len(person_segments)
+        if count == 1:
+            # 从单段文本中提取人数
+            cn_nums = {
+                "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+                "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
+            }
+            m = re.search(r"(\d+)\s*个?[人物]", description)
+            if m:
+                count = min(int(m.group(1)), 10)
+            else:
+                for cn, num in cn_nums.items():
+                    if re.search(rf"{cn}\s*个?[人物]", description):
+                        count = min(num, 10)
+                        break
+
+        count = min(max(count, 1), 10)
+
+        # 如果段数 < 人数，按均匀分布扩充
+        if len(person_segments) < count:
+            person_segments = person_segments * (count // max(len(person_segments), 1) + 1)
+            person_segments = person_segments[:count]
+
+        # 统一性别/年龄/颜色提取
+        def parse_person(seg: str):
+            gender = extract_gender(seg)
+            age = extract_age(seg)
+            upper_color = extract_color_after(seg, "上衣")
+            if upper_color == "unknown":
+                upper_color = extract_color_after(seg, "上装")
+            if upper_color == "unknown":
+                upper_color = find_color(seg)
+            lower_color = extract_color_after(seg, "下装")
+            if lower_color == "unknown":
+                lower_color = extract_color_after(seg, "裤子")
+            if lower_color == "unknown":
+                lower_color = extract_color_after(seg, "裤")
+            if lower_color == "unknown":
+                # 从下装描述附近找（去掉上衣匹配后的文本）
+                stripped = seg.replace("上衣", "").replace("上装", "")
+                lower_color = find_color(stripped)
+            return gender, age, upper_color, lower_color
+
+        # 位置分析（每段独立）
+        def extract_x_ratio(seg: str) -> float:
+            if "左" in seg and "中" not in seg and "右" not in seg:
+                return 0.2
+            if "右" in seg and "中" not in seg:
+                return 0.8
+            return 0.5
+
+        person_height = int(img_h * 0.50)
+        person_width = int(img_w * 0.20)
+
+        persons = []
+        for i, seg in enumerate(person_segments[:count]):
+            gender, age, upper_color, lower_color = parse_person(seg)
+            x_ratio = extract_x_ratio(seg)
+
+            x_center = int(img_w * (0.1 + 0.8 * i / max(count - 1, 1))) if count > 1 else int(img_w * x_ratio)
+            y_center = int(img_h * 0.45)
+
+            x1 = max(0, x_center - person_width // 2)
+            y1 = max(0, y_center - person_height // 2)
+            x2 = min(img_w, x_center + person_width // 2)
+            y2 = min(img_h, y_center + person_height // 2)
+
+            persons.append({
+                "gender": gender,
+                "gender_confidence": 0.80,
+                "age": age,
+                "age_confidence": 0.70,
+                "upper_color": upper_color,
+                "upper_color_confidence": 0.65,
+                "lower_color": lower_color,
+                "lower_color_confidence": 0.65,
+                "bbox": [x1, y1, x2, y2],
+            })
+
+        return persons
+
+    def _standardize_qwen_result(self, qwen_result: Dict) -> Dict:
+        """标准化 Qwen3-VL 返回的结果，确保 bbox 字段格式与前端期望一致"""
+        try:
+            persons = qwen_result.get("persons", [])
+            if not persons:
+                return qwen_result
+
+            for person in persons:
+                # 统一使用 "bbox" 字段（前端期望的格式）
+                raw_bbox = None
+                if "bboxes" in person and person["bboxes"]:
+                    bb = person["bboxes"][0]
+                    raw_bbox = bb.get("bbox") if isinstance(bb, dict) else bb
+                elif "bbox" in person:
+                    raw_bbox = person["bbox"]
+
+                if raw_bbox:
+                    person["bbox"] = list(raw_bbox) if isinstance(raw_bbox, (list, tuple)) else raw_bbox
+                    # 移除 bboxes 避免混淆
+                    if "bboxes" in person:
+                        del person["bboxes"]
+
+                if "person_id" not in person:
+                    person["person_id"] = person.get("id", 0)
+
+            return qwen_result
+        except Exception as e:
+            logger.warning(f"标准化 Qwen 结果失败: {str(e)}，原样返回")
+            return qwen_result
 
     def merge_results(self, local_result: Dict, qwen_result: Dict, local_weight: float = 0.3, qwen_weight: float = 0.7) -> Dict:
         """合并本地模型和Qwen-VL的分析结果"""
@@ -948,64 +1119,71 @@ class ImageAnalyzer(metaclass=Singleton):
         try:
             logger.info(f"开始图像分析，模式: {mode}")
             start_time = time.time()
-            
+
             # 使用本地模型进行分析
             local_result = self._analyze_with_local_models(image_path)
             logger.info(f"本地模型分析结果: {json.dumps(local_result, ensure_ascii=False, indent=2)}")
-            
-            # 在增强模式下，同时使用本地模型和 Qwen-VL
-            if mode == "enhanced":
-                logger.info("使用增强模式，调用 Qwen-VL API")
+
+            local_detected = local_result.get("detected", 0)
+
+            # 策略：无论 normal 还是 enhanced 模式，
+            # 如果本地检测到 0 个人（模型文件不存在导致），则调用 Qwen3-VL 作为主要分析手段
+            should_use_qwen = (mode == "enhanced") or (local_detected == 0)
+
+            if should_use_qwen:
+                logger.info("调用 Qwen3-VL 进行分析（本地检测到 0 人或使用增强模式）")
                 try:
-                    # 使用 Qwen-VL 进行分析
                     qwen_result = self.analyze_with_qwen(image_path)
                     logger.info(f"Qwen-VL 分析结果: {json.dumps(qwen_result, ensure_ascii=False, indent=2)}")
-                    
-                    # 检查 Qwen-VL 结果
+
                     if "error" not in qwen_result:
-                        logger.info("成功获取 Qwen-VL 分析结果，开始合并结果")
-                        
-                        # 确保 local_result 中有必要的字段
-                        if "persons" not in local_result:
-                            local_result["persons"] = []
-                        if "detected" not in local_result:
-                            local_result["detected"] = 0
-                        
-                        # 合并两个模型的结果
-                        try:
-                            final_result = self.merge_results(
-                                local_result,
-                                qwen_result,
-                                local_weight=0.3,  # 本地模型 30%
-                                qwen_weight=0.7    # 大模型 70%
-                            )
-                            logger.info(f"合并后的最终结果: {json.dumps(final_result, ensure_ascii=False, indent=2)}")
-                        except Exception as e:
-                            logger.error(f"合并结果失败: {str(e)}")
+                        qwen_detected = qwen_result.get("detected", 0)
+                        logger.info(f"Qwen-VL 检测到 {qwen_detected} 人")
+
+                        if qwen_detected > 0:
+                            if local_detected > 0 and mode == "enhanced":
+                                # enhanced 模式：YOLO bbox + Qwen3-VL 属性融合
+                                logger.info("增强模式：融合本地检测框 + Qwen3-VL 属性")
+                                final_result = self.merge_results(
+                                    local_result,
+                                    qwen_result,
+                                    local_weight=0.3,
+                                    qwen_weight=0.7
+                                )
+                            else:
+                                # normal 模式本地为0，或本地/增强模式 Qwen 检测到人
+                                # 直接使用 Qwen3-VL 结果（bbox 和属性都信它）
+                                final_result = qwen_result
+                                # 标准化 Qwen 结果的字段
+                                final_result = self._standardize_qwen_result(final_result)
+                        else:
+                            # Qwen 也检测不到人
+                            logger.warning("Qwen3-VL 也未检测到人物，使用本地结果")
                             final_result = local_result
                     else:
-                        logger.warning(f"Qwen-VL分析失败，使用本地模型结果: {qwen_result.get('error')}")
+                        logger.warning(f"Qwen3-VL 分析失败: {qwen_result.get('error')}，使用本地结果")
                         final_result = local_result
                 except Exception as e:
-                    logger.error(f"Qwen-VL分析失败: {str(e)}")
+                    logger.error(f"Qwen3-VL 分析过程异常: {str(e)}，使用本地结果")
                     final_result = local_result
             else:
-                logger.info("使用普通模式，仅使用本地模型")
+                # 本地检测到人，使用本地结果
+                logger.info("本地模型检测到人，使用本地结果")
                 final_result = local_result
-            
+
             # 确保结果包含所有必要字段
             if "persons" not in final_result:
                 final_result["persons"] = []
             if "detected" not in final_result:
                 final_result["detected"] = len(final_result.get("persons", []))
-            
+
             # 添加处理时间和模式信息
             final_result["processing_time"] = time.time() - start_time
             final_result["mode"] = mode
-            
+
             logger.info(f"图像分析完成，耗时: {final_result['processing_time']:.2f}秒")
             return final_result
-            
+
         except Exception as e:
             logger.error(f"图像分析失败: {str(e)}")
             return {

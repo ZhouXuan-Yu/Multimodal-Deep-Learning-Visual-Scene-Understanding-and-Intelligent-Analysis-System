@@ -1,795 +1,283 @@
-/**
- * 文件名: DataDashboardDetailView.vue
- * 描述: 数据仪表盘详情视图
- * 在项目中的作用: 
- * - 展示详细的数据分析和可视化信息
- * - 集成各种数据图表和监控组件
- * - 提供无人机数据、视频监控和地理信息的综合视图
- * - 支持数据筛选和交互式数据探索
- */
-
-<script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue';
-import { ElMessage } from 'element-plus';
-import { QuestionFilled, Filter, Refresh, Download } from '@element-plus/icons-vue';
-// 数据分析相关组件
-import DataChartsComponent from '@/components/dashboard/DataChartsComponent.vue';
-import DataDrilldownComponent from '@/components/dashboard/DataDrilldownComponent.vue';
-import DataComparisonComponent from '@/components/dashboard/DataComparisonComponent.vue';
-import AnomalyDetectionComponent from '@/components/dashboard/AnomalyDetectionComponent.vue';
-// 地理服务组件
-import GeoApiDashboard from '@/components/dashboard/GeoApiDashboard.vue';
-
-const loading = ref(true);
-const activeTab = ref('analytics');
-// 添加数据分析日期选择器变量
-const analyticsDate = ref(new Date());
-
-// 高级分析相关状态
-const analysisMode = ref('charts'); // 'charts', 'drilldown', 'comparison', 'ai'
-const drilldownType = ref('person'); // 'person', 'vehicle'
-const drilldownRegion = ref('central');
-const comparisonMode = ref('time'); // 'time', 'region', 'custom'
-// const visualizationType = ref('heatmap'); // 'heatmap', 'surface', 'timeAnimation'
-
-// 筛选面板状态
-const showFilterPanel = ref(false);
-
-// 筛选配置
-const filterConfig = reactive({
-  dateRange: [
-    new Date(new Date().setDate(new Date().getDate() - 7)),
-    new Date()
-  ],
-  regions: ['central'],
-  dataTypes: ['person', 'vehicle', 'risk'],
-  deviceStatus: true
-});
-
-// 区域选项
-const regionOptions = [
-  { value: 'central', label: '中心区域' },
-  { value: 'north', label: '北部区域' },
-  { value: 'south', label: '南部区域' },
-  { value: 'east', label: '东部区域' },
-  { value: 'west', label: '西部区域' }
-];
-
-// 数据类型选项
-const dataTypeOptions = [
-  { value: 'person', label: '人员监测' },
-  { value: 'vehicle', label: '车辆监测' },
-  { value: 'risk', label: '风险事件' },
-  { value: 'drone', label: '无人机状态' }
-];
-
-// 模拟加载过程
-onMounted(() => {
-  setTimeout(() => {
-    loading.value = false;
-  }, 1000);
-});
-
-// 切换标签页
-const switchTab = (tab: string) => {
-  activeTab.value = tab;
-};
-
-// 切换分析模式
-const switchAnalysisMode = (mode: string) => {
-  analysisMode.value = mode;
-};
-
-// 导出钻取数据
-const handleExportDrilldownData = (data: any) => {
-  console.log('导出钻取数据', data);
-  // 在实际应用中，这里可以调用下载或保存逻辑
-};
-
-// 显示提示消息
-const showTip = (message: string) => {
-  ElMessage({
-    message,
-    type: 'info'
-  });
-};
-
-// 应用筛选条件
-const applyFilters = () => {
-  showFilterPanel.value = false;
-  
-  ElMessage({
-    message: '筛选条件已应用',
-    type: 'success'
-  });
-  
-  // 在实际项目中，这里会将筛选条件传递给各个组件或调用API重新获取数据
-};
-
-// 重置筛选条件
-const resetFilters = () => {
-  filterConfig.dateRange = [
-    new Date(new Date().setDate(new Date().getDate() - 7)),
-    new Date()
-  ];
-  filterConfig.regions = ['central'];
-  filterConfig.dataTypes = ['person', 'vehicle', 'risk'];
-  filterConfig.deviceStatus = true;
-  
-  ElMessage({
-    message: '筛选条件已重置',
-    type: 'info'
-  });
-};
-
-// 刷新数据
-const refreshData = () => {
-  ElMessage({
-    message: '数据已更新',
-    type: 'success'
-  });
-  
-  // 实际项目中刷新数据的逻辑
-};
-</script>
-
 <template>
-  <div class="data-dashboard-detail">
-    <!-- 加载动画 -->
-    <div v-if="loading" class="loading-overlay">
-      <div class="loading-spinner"></div>
-      <p>加载数据大屏...</p>
-    </div>
-    
-    <div v-else>
-      <!-- 页面标题 -->
-      <header class="dashboard-header">
-        <div class="container">
-          <h1>无人机监控数据大屏</h1>
-          <p class="header-description">实时监控、数据分析与智能决策平台</p>
-          
-          <!-- 标签页导航 -->
-          <div class="tab-navigation">
-            <button 
-              class="tab-button" 
-              :class="{ active: activeTab === 'analytics' }" 
-              @click="switchTab('analytics')"
-            >
-              数据分析
-            </button>
-            <button 
-              class="tab-button" 
-              :class="{ active: activeTab === 'geo-api' }" 
-              @click="switchTab('geo-api')"
-            >
-              地理服务
-            </button>
-          </div>
-        </div>
-      </header>
-      
-      <!-- 主内容区域 -->
-      <main class="dashboard-content container">
-        <!-- 数据分析标签页 -->
-        <section v-if="activeTab === 'analytics'" class="tab-content">
-          <div class="analytics-header">
-            <h2>数据分析平台</h2>
-            <p class="analytics-description">
-              通过高级数据分析技术，为运营提供实时决策支持和趋势洞察
-            </p>
-            <div class="analytics-actions">
-              <el-button-group>
-                <el-button 
-                  :type="analysisMode === 'charts' ? 'primary' : ''" 
-                  size="small" 
-                  @click="switchAnalysisMode('charts')"
-                >
-                  基础图表
-                </el-button>
-                <el-button 
-                  :type="analysisMode === 'drilldown' ? 'primary' : ''" 
-                  size="small" 
-                  @click="switchAnalysisMode('drilldown')"
-                >
-                  数据钻取
-                </el-button>
-                <el-button 
-                  :type="analysisMode === 'comparison' ? 'primary' : ''" 
-                  size="small" 
-                  @click="switchAnalysisMode('comparison')"
-                >
-                  数据对比
-                </el-button>
-                <el-button 
-                  :type="analysisMode === 'ai' ? 'primary' : ''" 
-                  size="small" 
-                  @click="switchAnalysisMode('ai')"
-                >
-                  异常检测
-                </el-button>
-              </el-button-group>
-              
-              <div class="action-buttons">
-                <el-button size="small" @click="showFilterPanel = !showFilterPanel">
-                  <el-icon><Filter /></el-icon>
-                  筛选
-                </el-button>
-                <el-button size="small" @click="refreshData">
-                  <el-icon><Refresh /></el-icon>
-                  刷新
-                </el-button>
-                <el-button size="small">
-                  <el-icon><Download /></el-icon>
-                  导出
-                </el-button>
-              </div>
-              
-              <el-date-picker
-                v-model="analyticsDate"
-                type="date"
-                placeholder="选择日期"
-                size="small"
-                style="width: 160px;"
-              ></el-date-picker>
-            </div>
-          </div>
-          
-          <!-- 筛选面板 -->
-          <div v-if="showFilterPanel" class="filter-panel">
-            <div class="filter-panel-header">
-              <h3>数据筛选</h3>
-              <el-button type="text" @click="showFilterPanel = false">关闭</el-button>
-            </div>
-            
-            <div class="filter-panel-content">
-              <div class="filter-row">
-                <div class="filter-group">
-                  <span class="filter-label">时间范围</span>
-                  <el-date-picker
-                    v-model="filterConfig.dateRange"
-                    type="daterange"
-                    range-separator="至"
-                    start-placeholder="开始日期"
-                    end-placeholder="结束日期"
-                    size="default"
-                    style="width: 100%"
-                  />
-                </div>
-                
-                <div class="filter-group">
-                  <span class="filter-label">监测区域</span>
-                  <el-select 
-                    v-model="filterConfig.regions" 
-                    multiple 
-                    placeholder="选择区域" 
-                    size="default" 
-                    style="width: 100%"
-                  >
-                    <el-option
-                      v-for="item in regionOptions"
-                      :key="item.value"
-                      :label="item.label"
-                      :value="item.value"
-                    />
-                  </el-select>
-                </div>
-                
-                <div class="filter-group">
-                  <span class="filter-label">数据类型</span>
-                  <el-select 
-                    v-model="filterConfig.dataTypes" 
-                    multiple 
-                    placeholder="选择数据类型" 
-                    size="default" 
-                    style="width: 100%"
-                  >
-                    <el-option
-                      v-for="item in dataTypeOptions"
-                      :key="item.value"
-                      :label="item.label"
-                      :value="item.value"
-                    />
-                  </el-select>
-                </div>
-              </div>
-              
-              <div class="filter-group">
-                <el-checkbox v-model="filterConfig.deviceStatus">包含设备状态数据</el-checkbox>
-              </div>
-              
-              <div class="filter-actions">
-                <el-button type="primary" @click="applyFilters">应用筛选</el-button>
-                <el-button @click="resetFilters">重置</el-button>
-              </div>
-            </div>
-          </div>
-          
-          <!-- 根据分析模式显示不同的组件 -->
-          <template v-if="analysisMode === 'charts'">
-            <!-- 重新排列顺序：人物分析和项目分析放在前面，无人机状态放在后面 -->
-            <div class="analytics-compact-layout">
-              <!-- 人物分析区域 -->
-              <div class="analytics-section">
-                <h3 class="section-title">人物分析</h3>
-                <div class="analytics-card-grid">
-                  <div class="analytics-card">
-                    <h4>人物识别分布</h4>
-                    <DataChartsComponent class="chart-container" chartType="person" />
-                  </div>
-                  <div class="analytics-card">
-                    <h4>人物活动趋势</h4>
-                    <DataChartsComponent class="chart-container" chartType="personActivity" />
-                  </div>
-                </div>
-              </div>
-              
-              <!-- 项目分析区域 -->
-              <div class="analytics-section">
-                <h3 class="section-title">项目分析</h3>
-                <div class="analytics-card-grid">
-                  <div class="analytics-card">
-                    <h4>任务执行情况</h4>
-                    <DataChartsComponent class="chart-container" chartType="task" />
-                  </div>
-                  <div class="analytics-card">
-                    <h4>风险识别分析</h4>
-                    <DataChartsComponent class="chart-container" chartType="risk" />
-                  </div>
-                </div>
-              </div>
-              
-              <!-- 无人机状态区域 -->
-              <div class="analytics-section">
-                <h3 class="section-title">设备状态监测</h3>
-                <div class="analytics-card-grid">
-                  <div class="analytics-card">
-                    <h4>电量趋势</h4>
-                    <DataChartsComponent class="chart-container" chartType="battery" />
-                  </div>
-                  <div class="analytics-card">
-                    <h4>信号强度</h4>
-                    <DataChartsComponent class="chart-container" chartType="signal" />
-                  </div>
-                  <div class="analytics-card">
-                    <h4>飞行速度</h4>
-                    <DataChartsComponent class="chart-container" chartType="speed" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
-          
-          <template v-else-if="analysisMode === 'drilldown'">
-            <div class="drilldown-controls">
-              <div class="control-item">
-                <span class="control-label">数据类型</span>
-                <el-select v-model="drilldownType" placeholder="选择数据类型" size="small">
-                  <el-option label="人员监测" value="person" />
-                  <el-option label="车辆监测" value="vehicle" />
-                </el-select>
-              </div>
-              
-              <div class="control-item">
-                <span class="control-label">监测区域</span>
-                <el-select v-model="drilldownRegion" placeholder="选择区域" size="small">
-                  <el-option label="中心区域" value="central" />
-                  <el-option label="北部区域" value="north" />
-                  <el-option label="南部区域" value="south" />
-                  <el-option label="东部区域" value="east" />
-                  <el-option label="西部区域" value="west" />
-                </el-select>
-              </div>
-              
-              <el-tooltip content="了解高级分析" placement="top">
-                <el-button size="small" circle @click="showTip('数据钻取允许您从概览数据深入到详细数据，逐层分析信息。点击图表扇区可查看细分数据。')">
-                  <el-icon><QuestionFilled /></el-icon>
-                </el-button>
-              </el-tooltip>
-            </div>
-            
-            <DataDrilldownComponent
-              :dataType="drilldownType"
-              :region="drilldownRegion"
-              @export-data="handleExportDrilldownData"
-              @back="switchAnalysisMode('charts')"
-            />
-          </template>
-          
-          <template v-else-if="analysisMode === 'comparison'">
-            <div class="comparison-controls">
-              <div class="control-item">
-                <span class="control-label">对比类型</span>
-                <el-select v-model="comparisonMode" placeholder="选择对比类型" size="small">
-                  <el-option label="时间对比" value="time" />
-                  <el-option label="区域对比" value="region" />
-                  <el-option label="自定义对比" value="custom" />
-                </el-select>
-              </div>
-              
-              <el-tooltip content="了解数据对比" placement="top">
-                <el-button size="small" circle @click="showTip('数据对比功能允许您比较不同时间段或不同区域的数据，发现趋势变化和异常模式。')">
-                  <el-icon><QuestionFilled /></el-icon>
-                </el-button>
-              </el-tooltip>
-            </div>
-            
-            <DataComparisonComponent :mode="comparisonMode" />
-          </template>
+  <!-- Premium Background -->
+  <div class="premium-page-bg"></div>
 
-          <template v-else-if="analysisMode === 'ai'">
-            <AnomalyDetectionComponent />
-          </template>
-        </section>
-        
-        <!-- 地理服务标签页 -->
-        <section v-if="activeTab === 'geo-api'" class="tab-content">
-          <GeoApiDashboard style="height: 900px;" />
-        </section>
-      </main>
-      
-      <!-- 页脚 -->
-      <footer class="dashboard-footer">
-        <div class="container">
-          <div class="footer-left">
-            <p>© 2025 空融智链 无人机监控平台</p>
+  <div class="premium-page premium-mt-nav">
+    <!-- ================================================
+         NAVBAR
+         ================================================ -->
+    <nav class="premium-navbar">
+      <div class="navbar-inner">
+        <div class="navbar-brand">
+          <div class="navbar-logo">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <circle cx="16" cy="16" r="14" stroke="url(#logoGrad)" stroke-width="2" fill="none"/>
+              <path d="M10 16L16 10L22 16L16 22L10 16Z" fill="url(#logoGrad)" opacity="0.8"/>
+              <circle cx="16" cy="16" r="3" fill="url(#logoGrad)"/>
+              <defs>
+                <linearGradient id="logoGrad" x1="0" y1="0" x2="32" y2="32">
+                  <stop offset="0%" stop-color="#E8834A"/>
+                  <stop offset="100%" stop-color="#D4A843"/>
+                </linearGradient>
+              </defs>
+            </svg>
           </div>
-          <div class="footer-right">
-            <p>数据更新时间: {{ new Date().toLocaleString() }}</p>
+          <div class="navbar-titles">
+            <span class="navbar-title">监控数据大屏</span>
+            <span class="navbar-subtitle">智程导航 · 智眸千析 · 智航监控 · 智能咨询</span>
           </div>
         </div>
-      </footer>
-    </div>
+
+        <div class="navbar-center">
+          <div class="premium-tabs">
+            <button
+              v-for="tab in tabs"
+              :key="tab.key"
+              class="premium-tab"
+              :class="{ active: activeTab === tab.key }"
+              @click="switchTab(tab.key)"
+            >
+              <el-icon><component :is="tab.icon" /></el-icon>
+              {{ tab.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="navbar-actions">
+          <button class="premium-btn-glass" @click="handleRefresh">
+            <el-icon><Refresh /></el-icon>
+            刷新
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ================================================
+         MAIN CONTENT
+         ================================================ -->
+    <main class="premium-main">
+      <div v-if="loading" class="premium-loading">
+        <div class="loading-orb"></div>
+        <p class="loading-text">正在加载数据...</p>
+      </div>
+
+      <div v-else class="tab-content">
+        <ModuleOverview v-if="activeTab === 'overview'" @navigate="switchTab" />
+
+        <!-- 地理服务API：支持两种视图 -->
+        <div v-else-if="activeTab === 'geo'" class="geo-wrapper">
+          <div class="geo-view-toggle">
+            <button
+              class="toggle-btn"
+              :class="{ active: geoViewMode === 'dashboard' }"
+              @click="geoViewMode = 'dashboard'"
+            >
+              <el-icon><DataAnalysis /></el-icon>
+              功能操作台
+            </button>
+            <button
+              class="toggle-btn"
+              :class="{ active: geoViewMode === 'stats' }"
+              @click="geoViewMode = 'stats'"
+            >
+              <el-icon><Histogram /></el-icon>
+              数据分析报告
+            </button>
+          </div>
+          <GeoApiDashboard v-if="geoViewMode === 'dashboard'" @goto-stats="jumpToGeoStats" />
+          <GeoApiStats v-else />
+        </div>
+
+        <PersonRecognitionStats v-else-if="activeTab === 'person'" />
+        <RoutePlanningStats v-else-if="activeTab === 'route'" />
+        <AnomalyDetectionComponent v-else-if="activeTab === 'ai'" />
+        <ConsultationStats v-else-if="activeTab === 'consultation'" />
+      </div>
+    </main>
+
+    <!-- ================================================
+         FOOTER
+         ================================================ -->
+    <footer class="premium-footer premium-glass">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="14" stroke="url(#footerGrad)" stroke-width="2" fill="none"/>
+            <circle cx="16" cy="16" r="3" fill="url(#footerGrad)"/>
+            <defs>
+              <linearGradient id="footerGrad" x1="0" y1="0" x2="32" y2="32">
+                <stop offset="0%" stop-color="#E8834A"/>
+                <stop offset="100%" stop-color="#D4A843"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span>空融智链 · 数据分析大屏</span>
+        </div>
+        <div class="footer-meta">
+          <span class="footer-update">
+            <span class="footer-dot"></span>
+            系统在线 · 数据更新: {{ lastUpdateStr }}
+          </span>
+          <span style="color:var(--text-tertiary)">空融智链 · ModelService</span>
+        </div>
+      </div>
+    </footer>
   </div>
 </template>
 
+<script setup lang="ts">
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { useRoute } from 'vue-router';
+import { ElMessage } from 'element-plus';
+import {
+  Refresh, DataAnalysis, Compass, Sunny, Odometer,
+  Connection, User, ChatDotRound, TrendCharts, Warning, Location, Histogram
+} from '@element-plus/icons-vue';
+import { useDashboardStore } from '@/stores/dashboardStore';
+
+// Tab components
+import ModuleOverview from '@/components/dashboard/ModuleOverview.vue';
+import GeoApiDashboard from '@/components/dashboard/GeoApiDashboard.vue';
+import GeoApiStats from '@/components/dashboard/GeoApiStats.vue';
+import PersonRecognitionStats from '@/components/dashboard/PersonRecognitionStats.vue';
+import RoutePlanningStats from '@/components/dashboard/RoutePlanningStats.vue';
+import AnomalyDetectionComponent from '@/components/dashboard/AnomalyDetectionComponent.vue';
+import ConsultationStats from '@/components/dashboard/ConsultationStats.vue';
+
+const store = useDashboardStore();
+const route = useRoute();
+const loading = ref(true);
+const activeTab = ref('overview');
+const geoViewMode = ref<'dashboard' | 'stats'>('dashboard');
+
+const tabs = [
+  { key: 'overview',       label: '模块总览',      icon: Connection },
+  { key: 'geo',            label: '地理服务API',    icon: Location },
+  { key: 'person',         label: '智眸千析',       icon: User },
+  { key: 'route',          label: '智程导航',       icon: TrendCharts },
+  { key: 'ai',             label: 'AI数据分析',    icon: DataAnalysis },
+  { key: 'consultation',    label: '联系我们',       icon: ChatDotRound },
+];
+
+const lastUpdateStr = computed(() => {
+  if (!store.lastUpdate) return '—';
+  return new Date(store.lastUpdate).toLocaleString('zh-CN');
+});
+
+const switchTab = (key: string) => {
+  activeTab.value = key;
+  if (key !== 'geo') geoViewMode.value = 'dashboard';
+};
+
+const jumpToGeoStats = () => {
+  geoViewMode.value = 'stats';
+  activeTab.value = 'geo';
+};
+
+const handleRefresh = () => {
+  store.refresh();
+  ElMessage({ message: '数据已刷新', type: 'success' });
+};
+
+onMounted(() => {
+  store.init();
+  if (route.query.geoView === 'stats') geoViewMode.value = 'stats';
+  setTimeout(() => { loading.value = false; }, 800);
+});
+
+onBeforeUnmount(() => {
+  store.destroy();
+});
+</script>
+
 <style scoped>
-.data-dashboard-detail {
-  background-color: #0a1929;
-  color: white;
+/* ── Page Layout ── */
+.premium-page {
   min-height: 100vh;
+  padding-bottom: 32px;
+  animation: pageFadeIn 0.6s ease both;
 }
-
-.container {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 0 20px;
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
+.premium-main { max-width: 1920px; margin: 0 auto; padding: 0 28px; }
 
-/* 加载动画 */
-.loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #0a1929;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+/* ── Navbar ── */
+.navbar-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.navbar-brand { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+.navbar-logo {
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px;
+  background: rgba(255,255,255,0.6);
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.4);
+  box-shadow: 0 2px 12px rgba(232,131,74,0.15);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
+.navbar-logo:hover { transform: scale(1.08) rotate(5deg); box-shadow: 0 4px 20px rgba(232,131,74,0.30); }
+.navbar-titles { display: flex; flex-direction: column; gap: 2px; }
+.navbar-title { font-family: 'Inter','SF Pro Display',system-ui; font-weight: 700; font-size: 1.05rem; color: var(--text-primary); letter-spacing: -0.02em; white-space: nowrap; }
+.navbar-subtitle { font-family: 'Inter',system-ui; font-size: 0.72rem; color: var(--text-tertiary); letter-spacing: 0.02em; }
+.navbar-center { flex: 1; display: flex; justify-content: center; }
+.navbar-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
-.loading-spinner {
-  width: 50px;
-  height: 50px;
-  border: 5px solid #132f4c;
-  border-top-color: #3b82f6;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 20px;
+/* ── Tabs ── */
+.premium-tabs { display: inline-flex; gap: 4px; background: rgba(255,255,255,0.40); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 1px solid var(--glass-border); border-radius: 20px; padding: 5px; }
+.premium-tab { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; background: transparent; border: none; border-radius: 14px; font-family: 'Inter',system-ui; font-weight: 500; font-size: 0.88rem; color: var(--text-secondary); cursor: pointer; transition: all 0.35s cubic-bezier(0.25,0.1,0.25,1); white-space: nowrap; position: relative; }
+.premium-tab:hover { color: var(--text-primary); background: rgba(255,255,255,0.50); transform: translateY(-1px); }
+.premium-tab.active {
+  background: white;
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 3px 14px rgba(180,120,60,0.14), 0 0 0 1px rgba(232,131,74,0.15);
 }
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+.premium-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 4px; left: 50%;
+  transform: translateX(-50%);
+  width: 20px; height: 3px;
+  background: linear-gradient(90deg, #E8834A, #D4A843);
+  border-radius: 2px;
 }
+.premium-tab .el-icon { font-size: 15px; }
 
-/* 页面标题 */
-.dashboard-header {
-  background-color: #0a192f;
-  margin-top: 15px;
-  padding: 30px 0;
-  color: white;
-}
+/* ── Buttons ── */
+.premium-btn-glass { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; background: rgba(255,255,255,0.45); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--glass-border); border-radius: 14px; font-family: 'Inter',system-ui; font-weight: 500; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer; transition: all 0.3s ease; }
+.premium-btn-glass:hover { background: rgba(255,255,255,0.70); color: var(--text-primary); border-color: rgba(200,160,100,0.35); transform: translateY(-1px); }
+.premium-btn-primary { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-gold) 100%); border: none; border-radius: 14px; font-family: 'Inter',system-ui; font-weight: 600; font-size: 0.85rem; color: white; cursor: pointer; box-shadow: 0 4px 16px rgba(232,131,74,0.30); transition: all 0.3s ease; }
+.premium-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(232,131,74,0.40); }
 
-.dashboard-header h1 {
-  font-size: 2rem;
-  margin-bottom: 5px;
-  color: #fff;
-}
+/* ── Loading ── */
+.premium-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100vh - 120px); gap: 24px; }
+.loading-orb { width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-gold) 100%); box-shadow: 0 8px 32px rgba(232,131,74,0.35); animation: orbPulse 1.8s ease-in-out infinite; }
+@keyframes orbPulse { 0%,100% { transform: scale(1); box-shadow: 0 8px 32px rgba(232,131,74,0.35); } 50% { transform: scale(1.12); box-shadow: 0 16px 48px rgba(232,131,74,0.50); } }
+.loading-text { font-family: 'Inter',system-ui; font-size: 0.95rem; color: var(--text-secondary); margin: 0; animation: textFade 1.5s ease-in-out infinite alternate; }
+@keyframes textFade { from { opacity: 0.5; } to { opacity: 1; } }
 
-.header-description {
-  color: #90caf9;
-  margin: 0 0 15px;
-}
+/* ── Tab Content ── */
+.tab-content { margin-top: 24px; }
 
-/* 标签页导航 */
-.tab-navigation {
-  display: flex;
-  gap: 10px;
-  margin-top: 20px;
-  flex-wrap: wrap;
-  justify-content: center;
-  padding: 5px 10px;
-  background-color: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
+/* ── Geo Sub-View Toggle ── */
+.geo-wrapper { display: flex; flex-direction: column; gap: 16px; }
+.geo-view-toggle { display: flex; gap: 6px; padding: 5px; background: rgba(255,255,255,0.40); backdrop-filter: blur(15px); border: 1px solid var(--glass-border); border-radius: 16px; width: fit-content; }
+.toggle-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 20px; background: transparent; border: none; border-radius: 11px; font-family: 'Inter',system-ui; font-weight: 500; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer; transition: all 0.3s ease; }
+.toggle-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.50); transform: translateY(-1px); }
+.toggle-btn.active { background: white; color: var(--text-primary); font-weight: 600; box-shadow: 0 2px 10px rgba(180,120,60,0.10); }
+.toggle-btn .el-icon { font-size: 15px; }
 
-.tab-button {
-  padding: 12px 20px;
-  background-color: rgba(255, 255, 255, 0.07);
-  border: none;
-  border-radius: 5px;
-  color: #e3f2fd;
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 0.95rem;
-  transition: all 0.3s ease;
-  letter-spacing: 0.5px;
-  min-width: 100px;
-  text-align: center;
-}
+/* ── Footer ── */
+.premium-footer { margin: 32px 28px 0; border-radius: 24px; padding: 18px 28px; }
+.footer-inner { display: flex; justify-content: space-between; align-items: center; }
+.footer-brand { display: flex; align-items: center; gap: 10px; font-family: 'Inter',system-ui; font-size: 0.85rem; color: var(--text-secondary); }
+.footer-meta { font-family: 'Inter',system-ui; font-size: 0.82rem; color: var(--text-tertiary); display: flex; gap: 20px; align-items: center; }
+.footer-update { display: inline-flex; align-items: center; gap: 6px; }
+.footer-dot { width: 8px; height: 8px; border-radius: 50%; background: #52c41a; display: inline-block; animation: dotPulse 2s ease-in-out infinite; }
+@keyframes dotPulse { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(82,196,26,0.4); } 50% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(82,196,26,0); } }
 
-.tab-button:hover {
-  background-color: rgba(255, 255, 255, 0.12);
-  transform: translateY(-2px);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-}
-
-.tab-button.active {
-  background-color: #4fc3f7;
-  color: white;
-  box-shadow: 0 3px 15px rgba(79, 195, 247, 0.3);
-}
-
-/* 内容区域 */
-.dashboard-content {
-  padding: 30px 0;
-}
-
-.tab-content {
-  margin-bottom: 40px;
-}
-
-/* 页脚 */
-.dashboard-footer {
-  padding: 20px 0;
-  background-color: #132f4c;
-  margin-top: 40px;
-}
-
-.dashboard-footer .container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.footer-left p, .footer-right p {
-  margin: 0;
-  font-size: 0.9rem;
-  color: #90caf9;
-}
-
-/* 数据分析页面样式 */
-.analytics-header {
-  margin-bottom: 20px;
-  display: flex;
-  flex-direction: column;
-}
-
-.analytics-header h2 {
-  font-size: 1.5rem;
-  margin: 0 0 8px 0;
-  color: #ffffff;
-}
-
-.analytics-description {
-  font-size: 1rem;
-  color: #90caf9;
-  margin: 0 0 20px 0;
-}
-
-.analytics-actions {
-  display: flex;
-  gap: 16px;
-  margin-top: 16px;
-  flex-wrap: wrap;
-}
-
-.analytics-component {
-  margin-top: 30px;
-  background-color: #0a1929;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  min-height: 700px;
-}
-
-/* 新增分析布局样式 */
-.analytics-compact-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 30px;
-  margin-top: 16px;
-}
-
-.analytics-section {
-  background-color: #132f4c;
-  border-radius: 8px;
-  padding: 20px 22px 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.section-title {
-  font-size: 16px;
-  font-weight: 500;
-  color: #e3f2fd;
-  margin: 0 0 16px 0;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.analytics-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 22px;
-}
-
-.analytics-card {
-  background-color: rgba(255, 255, 255, 0.03);
-  border-radius: 6px;
-  padding: 12px;
-  height: 380px;
-  display: flex;
-  flex-direction: column;
-}
-
-.analytics-card h4 {
-  font-size: 14px;
-  margin: 0 0 12px 0;
-  color: #90caf9;
-  font-weight: normal;
-}
-
-.chart-container {
-  flex: 1;
-  min-height: 320px;
-  overflow: hidden;
-}
-
-/* 高级分析相关样式 */
-.drilldown-controls,
-.comparison-controls {
-  background-color: #132F4C;
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 20px;
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-
-.control-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.control-label {
-  color: #90CAF9;
-  white-space: nowrap;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .drilldown-controls,
-  .comparison-controls {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .control-item {
-    width: 100%;
-  }
-
-  .tab-navigation {
-    flex-wrap: wrap;
-  }
-
-  .tab-button {
-    flex: 1;
-    min-width: 120px;
-  }
-
-  .analytics-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
-/* 筛选面板样式 */
-.filter-panel {
-  background-color: #132f4c;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.filter-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.filter-panel-header h3 {
-  margin: 0;
-  color: #e3f2fd;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.filter-panel-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.filter-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.filter-label {
-  color: #90caf9;
-  font-size: 14px;
-}
-
-.filter-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 8px;
-}
-
-/* 响应式设计 */
-@media (max-width: 992px) {
-  .filter-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .filter-row {
-    grid-template-columns: 1fr;
-  }
-
-  .analytics-actions {
-    flex-direction: column;
-    gap: 10px;
-    align-items: flex-start;
-  }
-
-  .action-buttons {
-    width: 100%;
-    justify-content: space-between;
-  }
-}
-
-/* 异常检测组件样式 */
-.anomaly-detection {
-  margin-top: 20px;
-}
-</style> 
+/* ── Responsive ── */
+@media (max-width: 1400px) { .premium-tabs { flex-wrap: wrap; max-width: 600px; } }
+@media (max-width: 1100px) { .navbar-center { display: none; } .navbar-inner { justify-content: space-between; } }
+@media (max-width: 768px) { .premium-main { padding: 0 16px; } .premium-footer { margin: 24px 16px 0; } .footer-inner { flex-direction: column; gap: 8px; text-align: center; } }
+</style>

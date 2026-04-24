@@ -2,7 +2,7 @@
 import { ref, onMounted, reactive } from 'vue';
 import emailjs from '@emailjs/browser';
 import { ElMessage } from 'element-plus';
-import feedbackImage from '@/assets/images/feedback.png';
+import { useDashboardStore } from '@/stores/dashboardStore';
 
 // EmailJS 配置（通过 Vite 环境变量注入；不要把私钥放到前端）
 const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
@@ -10,6 +10,9 @@ const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
 const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
 const EMAILJS_RECEIVER_EMAIL =
   import.meta.env.VITE_EMAILJS_RECEIVER_EMAIL || '2356648915@qq.com';
+
+// DeepSeek API 配置（通过环境变量注入）
+const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY;
 
 // 定义表单数据
 const form = reactive({
@@ -102,8 +105,12 @@ const processMessageWithDeepSeek = async (message: string) => {
       客户询问内容：${message}
     `;
 
-    // 使用新的 DeepSeek API 密钥
-    const apiKey = 'sk-4eca4ee7a4524c5b8108c9eaa7ca2850';
+    // DeepSeek API 配置（从环境变量读取，若未配置则跳过 AI 处理）
+    const apiKey = DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      console.warn('[DeepSeek] VITE_DEEPSEEK_API_KEY 未配置，AI 处理步骤已跳过。');
+      return formatFallbackResponse(message, interestLabel);
+    }
     
     const response = await fetch(url, {
       method: 'POST',
@@ -445,9 +452,12 @@ const sendEmail = async (processedContent: string) => {
     console.log('邮件发送成功:', result.text);
     return result;
   } catch (error: any) {
-    // 仅记录日志，不再中断前端流程，保证表单在演示环境下始终成功
-    console.error('发送邮件失败（已忽略，用于演示环境）:', error);
-    return null;
+    // 记录错误信息，以便调试时定位问题
+    const errorMsg = error?.text || error?.message || error?.statusText || JSON.stringify(error);
+    console.error('[EmailJS] 发送邮件失败:', errorMsg);
+    ElMessage.error('邮件发送失败，请检查配置或稍后重试。');
+    // 抛出错误，由 submitForm 统一处理
+    throw new Error(`邮件发送失败: ${errorMsg}`);
   }
 };
 
@@ -466,6 +476,28 @@ const submitForm = async () => {
     
     // 成功处理
     success.value = true;
+
+    // 写入数据分析大屏 store（不影响原流程）
+    try {
+      const { useDashboardStore } = await import('@/stores/dashboardStore');
+      const dashboardStore = useDashboardStore();
+      if (!dashboardStore.initialized) dashboardStore.init();
+      const interestLabels: Record<string, string> = {
+        'general': '一般咨询', 'path-planning': '路径规划',
+        'person-recognition': '人员识别', 'vehicle-monitoring': '车辆监控',
+        'data-dashboard': '数据仪表盘',
+      };
+      dashboardStore.addConsultationRecord({
+        name: form.name || '匿名用户',
+        email: form.email || '',
+        interest: form.interest,
+        interestLabel: interestLabels[form.interest] || '一般咨询',
+        message: form.message,
+        userQuestion: form.message,
+        aiReply: processedContent,
+        status: 'sent',
+      });
+    } catch (e) { /* dashboard store is optional */ }
 
     // 重置表单
     form.name = '';
@@ -671,12 +703,20 @@ const submitForm = async () => {
             </div>
 
             <div class="rounded-lg overflow-hidden shadow-lg h-64 bg-gray-300">
-              <!-- 地图占位符 -->
-              <img
-                :src="feedbackImage"
-                alt="地图"
-                class="w-full h-full object-cover"
-              >
+              <!-- 地图占位符 SVG -->
+              <svg class="w-full h-full" viewBox="0 0 600 300" xmlns="http://www.w3.org/2000/svg" style="background: linear-gradient(135deg, #e8f4f8 0%, #d4e8f0 100%);">
+                <text x="300" y="130" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="16" fill="#5A8BA6">📍 联系我们</text>
+                <text x="300" y="155" text-anchor="middle" font-family="Microsoft YaHei, sans-serif" font-size="12" fill="#7BA7C2">河南省郑州市惠济区英才街18号</text>
+                <circle cx="300" cy="190" r="8" fill="#E8834A" opacity="0.8">
+                  <animate attributeName="r" values="8;12;8" dur="2s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="0.8;0.4;0.8" dur="2s" repeatCount="indefinite"/>
+                </circle>
+                <circle cx="300" cy="190" r="16" fill="none" stroke="#E8834A" stroke-width="1.5" opacity="0.4">
+                  <animate attributeName="r" values="16;24;16" dur="2s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2s" repeatCount="indefinite"/>
+                </circle>
+                <text x="315" y="195" font-family="Microsoft YaHei, sans-serif" font-size="11" fill="#666">ModelService</text>
+              </svg>
             </div>
           </div>
         </div>

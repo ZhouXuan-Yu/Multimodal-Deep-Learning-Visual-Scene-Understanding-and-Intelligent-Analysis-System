@@ -16,6 +16,10 @@
         <div class="panel-header">
           <h2>地理信息服务控制台</h2>
           <div class="panel-subtitle">实时地理数据分析与智能决策</div>
+          <button class="goto-stats-btn" @click="$emit('goto-stats')">
+            <el-icon><Histogram /></el-icon>
+            查看数据分析报告
+          </button>
         </div>
 
         <!-- 添加数据提示卡片 -->
@@ -494,7 +498,7 @@ import { ref, reactive, onMounted, watch, nextTick, computed, onBeforeUnmount } 
 import { ElMessage } from 'element-plus';
 import {
   Sunny, Moon, Search, Location, Position, Files,
-  Compass, MapLocation, DataAnalysis, Money, Guide, 
+  Compass, MapLocation, DataAnalysis, Money, Guide,
   Timer, Odometer, Histogram, WindPower, Cloudy, Close,
   Delete, SetUp, PictureFilled, Fold, Expand, Monitor,
   Promotion, Picture
@@ -511,12 +515,16 @@ import POIAnalysisComponent from '../poi/POIAnalysisComponent.vue';
 import * as echarts from 'echarts/core';
 import { PieChart, BarChart, LineChart } from 'echarts/charts';
 import {
-  TitleComponent, 
+  TitleComponent,
   TooltipComponent,
   LegendComponent,
   GridComponent
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
+
+echarts.use([PieChart, BarChart, LineChart, TitleComponent, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer]);
+
+defineEmits(['goto-stats']);
 
 // 注册必要的ECharts组件
 echarts.use([
@@ -3816,6 +3824,28 @@ onMounted(() => {
   line-height: 1.4;
   font-weight: 400;
 }
+
+.goto-stats-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #E8834A 0%, #D4A843 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(232,131,74,0.30);
+}
+.goto-stats-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(232,131,74,0.45);
+}
+.goto-stats-btn .el-icon { font-size: 15px; }
 
 /* 更新数据提示卡片样式 */
 .data-hint-card {

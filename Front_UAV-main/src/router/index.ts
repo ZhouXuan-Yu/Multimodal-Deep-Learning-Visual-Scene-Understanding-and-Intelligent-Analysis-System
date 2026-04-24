@@ -230,11 +230,9 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   const isLoggedIn = localStorage.getItem('currentUser')
-  
+
   if (requiresAuth && !isLoggedIn) {
-    // 设置需要登录的标记和原始目标路由信息，用于登录页面回跳
     localStorage.setItem('redirectAfterLogin', to.fullPath)
-    // 设置需要显示登录提示弹窗的标记
     localStorage.setItem('showLoginPrompt', 'true')
     next('/auth')
   } else {

@@ -1149,7 +1149,25 @@ router = APIRouter()
 
 # 获取可用设备
 devices = get_device()
-processor = MediaProcessor(devices)
+
+# ImageAnalyzer 可能因为模型文件不存在而失败，需要延迟初始化
+_analyzer_instance = None
+
+def get_analyzer():
+    global _analyzer_instance
+    if _analyzer_instance is None:
+        from app.utils.image_analyzer import image_analyzer
+        _analyzer_instance = image_analyzer
+    return _analyzer_instance
+
+# MediaProcessor 也可能因为模型不存在而失败，也改为延迟
+_processor_instance = None
+
+def get_processor():
+    global _processor_instance
+    if _processor_instance is None:
+        _processor_instance = MediaProcessor(devices)
+    return _processor_instance
 
 # 创建临时文件存储目录
 TEMP_DIR = Path("temp/uploads")
@@ -1262,7 +1280,8 @@ def analyze_image(
         
         try:
             # 使用图像分析器处理图片
-            result = image_analyzer.analyze_image(str(temp_path), mode)
+            analyzer = get_analyzer()
+            result = analyzer.analyze_image(str(temp_path), mode)
             
             # 打印分析结果用于调试
             logger.info(f"分析结果: {json.dumps(result, ensure_ascii=False)}")

@@ -482,11 +482,11 @@ const translateGender = (gender) => {
 
 const translateColor = (color) => {
   if (!color) return '未知';
-  
+
   const colorMap = {
-    'red': '红色',
+    'red': '红色', 'darkred': '深红色',
     'green': '绿色',
-    'blue': '蓝色',
+    'blue': '蓝色', 'darkblue': '深蓝色', 'lightblue': '浅蓝色',
     'yellow': '黄色',
     'orange': '橙色',
     'purple': '紫色',
@@ -494,9 +494,11 @@ const translateColor = (color) => {
     'brown': '棕色',
     'black': '黑色',
     'white': '白色',
-    'gray': '灰色'
+    'gray': '灰色', 'grey': '灰色', 'lightgray': '浅灰色', 'darkgray': '深灰色',
+    'cyan': '青色',
+    'multicolor': '彩色',
   };
-  
+
   return colorMap[color] || color;
 };
 
